@@ -157,7 +157,7 @@ function dataState(LESS_THAN_SIGN_STATE){
 			this._state = BEFORE_ENTITY;
 			this._sectionStart = this._index;
 		} else {
-			consumeText(c);
+			consumeText.call(this, c);
 		}
 	};
 }
@@ -176,6 +176,7 @@ function textState(LESS_THAN_SIGN_STATE){
 				this._cbs.ontext(this._getSection());
 			}
 			this._cbs.ontext(REPLACEMENT_CHARACTER);
+			this._sectionStart = this._index + 1;
 		}
 	};
 }
@@ -207,6 +208,7 @@ _$[PLAINTEXT_STATE] = function(c){
 			this._cbs.ontext(this._getSection());
 		}
 		this._cbs.ontext(REPLACEMENT_CHARACTER);
+		this._sectionStart = this._index + 1;
 	}
 };
 
@@ -227,8 +229,7 @@ _$[TAG_OPEN] = function(c){
 		this._sectionStart = this._index;
 	} else {
 		// parse error
-		this._cbs.ontext(this._getSection());
-		this._sectionStart = this._index;
+		this._state = DATA;
 	}
 };
 
@@ -246,6 +247,7 @@ _$[END_TAG_OPEN] = function(c){
 		// parse error
 		this._state = BOGUS_COMMENT;
 		this._sectionStart = this._index;
+		this._index--;
 	}
 };
 
@@ -259,7 +261,9 @@ _$[TAG_NAME] = function(c){
 		this._cbs.onopentagname(this._getEndingSection());
 		this._state = SELF_CLOSING_START_TAG;
 	} else if(c === ">"){
-		this._cbs.onopentagname(this._getEndingSection());
+		this._cbs.onopentagname(this._getSection());
+		this._cbs.onopentagend();
+		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} //TODO c === "\0"
 };
@@ -280,16 +284,17 @@ function lessThanSignState(BASE_STATE, NEXT_STATE){
 
 _$[END_TAG_NAME_STATE] = function(c){
 	if(whitespace(c) || c === "/"){
-		this._cbs.onclosetag(this._getEndingSection());
-		this._state = this._baseState;
+		this._cbs.onclosetag(this._sequence);
+		this._state = AFTER_CLOSING_TAG_NAME;
 	} else if(c === ">"){
+		this._cbs.onclosetag(this._sequence);
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else {
 		this._state = this._baseState;
 		this._index--;
 	}
-}
+};
 
 // 12.2.4.11 RCDATA less-than sign state
 
@@ -400,45 +405,36 @@ _$[BEFORE_ATTRIBUTE_VALUE] = function(c){
 		this._state = DATA;
 	} else if(!whitespace(c)){
 		// parse error (c === "<" || c === "=")
+		this._state = ATTRIBUTE_VALUE_NQ;
 		this._sectionStart = this._index;
-		if(c === "&"){
-			this._baseState = ATTRIBUTE_VALUE_NQ;
-			this._state = BEFORE_ENTITY;
-		} else {
-			this._state = ATTRIBUTE_VALUE_NQ;
-		}
+		this._index--;
 	}
 };
+
+function attributeValueQuotedState(QUOT){
+	return function(c){
+		if(c === QUOT){
+			this._cbs.onattribdata(this._getEndingSection());
+			this._cbs.onattribend();
+			this._state = BEFORE_ATTRIBUTE_NAME;
+		} else if(this._decodeEntities && c === "&"){
+			this._cbs.onattribdata(this._getEndingSection());
+			this._baseState = this._state;
+			this._state = BEFORE_ENTITY;
+			this._sectionStart = this._index;
+		} else if(c === "\0"){
+			// parse error
+			this._cbs.onattribdata(this._getSection() + REPLACEMENT_CHARACTER);
+			this._sectionStart = this._index + 1;
+		}
+	};
+}
 
 // 8.2.4.38 Attribute value (double-quoted) state
-
-_$[ATTRIBUTE_VALUE_DQ] = function(c){
-	if(c === "\""){
-		this._cbs.onattribdata(this._getEndingSection());
-		this._cbs.onattribend();
-		this._state = BEFORE_ATTRIBUTE_NAME;
-	} else if(this._decodeEntities && c === "&"){
-		this._cbs.onattribdata(this._getEndingSection());
-		this._baseState = this._state;
-		this._state = BEFORE_ENTITY;
-		this._sectionStart = this._index;
-	}
-};
-
 // 8.2.4.39 Attribute value (single-quoted) state
 
-_$[ATTRIBUTE_VALUE_SQ] = function(c){
-	if(c === "'"){
-		this._cbs.onattribdata(this._getEndingSection());
-		this._cbs.onattribend();
-		this._state = BEFORE_ATTRIBUTE_NAME;
-	} else if(this._decodeEntities && c === "&"){
-		this._cbs.onattribdata(this._getEndingSection());
-		this._baseState = this._state;
-		this._state = BEFORE_ENTITY;
-		this._sectionStart = this._index;
-	}
-};
+_$[ATTRIBUTE_VALUE_DQ] = attributeValueQuotedState("\"");
+_$[ATTRIBUTE_VALUE_SQ] = attributeValueQuotedState("'");
 
 // 8.2.4.40 Attribute value (unquoted) state
 
@@ -457,6 +453,10 @@ _$[ATTRIBUTE_VALUE_NQ] = function(c){
 		this._baseState = this._state;
 		this._state = BEFORE_ENTITY;
 		this._sectionStart = this._index;
+	} else if(c === "\0"){
+		// parse error
+		this._cbs.onattribdata(this._getSection() + REPLACEMENT_CHARACTER);
+		this._sectionStart = this._index + 1;
 	}
 	// parse error (c === "\"" || c === "'" || c === "<" || c === "=" || c === "`")
 };
@@ -470,7 +470,7 @@ _$[SELF_CLOSING_START_TAG] = function(c){
 		this._cbs.onselfclosingtag();
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
-	} else if(!whitespace(c)){
+	} else {
 		this._state = BEFORE_ATTRIBUTE_NAME;
 		this._index--;
 	}
@@ -481,7 +481,11 @@ _$[SELF_CLOSING_START_TAG] = function(c){
 _$[BOGUS_COMMENT] = function(c){
 	if(c === ">"){
 		this._cbs.onboguscomment(this._getPartialSection());
+		this._cbs.onboguscommentend();
 		this._state = DATA;
+	} else if(c === "\0"){
+		this._cbs.onboguscomment(this._getPartialSection() + REPLACEMENT_CHARACTER);
+		this._sectionStart = this._index + 1;
 	}
 };
 
@@ -498,6 +502,7 @@ _$[MARKUP_DECLARATION_OPEN] = function(c){
 		this._consumeSequence("CDATA", BEFORE_CDATA, BOGUS_COMMENT);
 	} else {
 		this._state = BOGUS_COMMENT;
+		this._index--;
 	}
 };
 
@@ -522,6 +527,7 @@ _$[COMMENT_START] = function(c){
 		this._state = DATA;
 	} else {
 		this._state = COMMENT;
+		this._index--;
 	}
 };
 
@@ -537,13 +543,24 @@ _$[COMMENT_START_DASH] = function(c){
 		this._state = DATA;
 	} else {
 		this._state = COMMENT;
+		this._index--;
 	}
 };
 
 // 8.2.4.48 Comment state
+
+_$[COMMENT] = function(c){
+	if(c === "-"){
+		this._state = COMMENT_END_DASH;
+	} else if(c === "\0"){
+		// parse error
+		this._cbs.oncomment(this._getPartialSection() + REPLACEMENT_CHARACTER);
+		this._sectionStart = this._index + 1;
+	}
+};
+
 // 8.2.4.49 Comment end dash state
 
-_$[COMMENT]          = characterState("-", COMMENT_END_DASH);
 _$[COMMENT_END_DASH] = ifElseState("-", COMMENT_END, COMMENT);
 
 // 8.2.4.50 Comment end state
@@ -552,12 +569,14 @@ _$[COMMENT_END] = function(c){
 	if(c === ">"){
 		//remove 2 trailing chars
 		this._cbs.oncomment(this._buffer.substring(this._sectionStart, this._index - 2));
+		this._cbs.oncommentend();
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else if(c === "!"){
 		this._state = COMMENT_END_BANG;
 	} else if(c !== "-"){
 		this._state = COMMENT;
+		this._index--;
 	}
 	// else: stay in COMMENT_END (`--->`)
 };
@@ -566,23 +585,28 @@ _$[COMMENT_END] = function(c){
 
 _$[COMMENT_END_BANG] = function(c){
 	if(c === ">"){
-		//remove trailing !
-		this._cbs.oncomment(this._buffer.substring(this._sectionStart, this._index - 1));
+		//remove trailing --!
+		this._cbs.oncomment(this._buffer.substring(this._sectionStart, this._index - 3));
+		this._cbs.oncommentend();
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else if(c === "-"){
 		this._state = COMMENT_END_DASH;
 	} else {
 		this._state = COMMENT;
+		this._index--;
 	}
 };
 
 _$[IN_CLOSING_TAG_NAME] = function(c){
-	if(c === ">" || whitespace(c)){
+	if(whitespace(c) || c === "/"){
 		this._cbs.onclosetag(this._getEndingSection());
 		this._state = AFTER_CLOSING_TAG_NAME;
-		this._index--;
-	}
+	} else if(c === ">"){
+		this._cbs.onclosetag(this._getSection());
+		this._sectionStart = this._index + 1;
+		this._state = DATA;
+	} //TODO c === "\0"
 };
 
 _$[AFTER_CLOSING_TAG_NAME] = function(c){
@@ -642,6 +666,7 @@ _$[AFTER_DOCTYPE_NAME] = function(c){
 _$[AFTER_DT_PUBLIC] = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
+		this._cbs.ondtquirksend();
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else if(c === "\""){
@@ -662,7 +687,7 @@ function doctypeQuotedState(quot, name, NEXT){
 			this._state = NEXT;
 		} else if(c === ">"){
 			// parse error
-			this._cbs.ondoctypename(this._getPartialSection());
+			this._cbs[name](this._getPartialSection());
 			this._cbs.ondtquirksend();
 			this._state = DATA;
 		}
@@ -700,6 +725,7 @@ _$[DT_BETWEEN_PUB_SYS] = function(c){
 _$[AFTER_DT_SYSTEM] = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
+		this._cbs.ondtquirksend();
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else if(c === "\""){
@@ -721,10 +747,12 @@ _$[DT_SYSTEM_SQ] = doctypeQuotedState("'",  "ondoctypesystem", AFTER_DT_SYSTEM_I
 
 // 8.2.4.66 After DOCTYPE system identifier state
 
-_$[AFTER_DT_SYSTEM_IDENT] = function(){
-	this._cbs.ondoctypeend();
-	this._state = BOGUS_DOCTYPE;
-	this._index--;
+_$[AFTER_DT_SYSTEM_IDENT] = function(c){
+	if(!whitespace(c)){
+		this._cbs.ondoctypeend();
+		this._state = BOGUS_DOCTYPE;
+		this._index--;
+	}
 };
 
 //helper for sequences
@@ -788,9 +816,16 @@ _$[BEFORE_NUMERIC_ENTITY] = function(c){
 
 _$[IN_NAMED_ENTITY] = function(c){
 	if(c === ";"){
-		this._parseNamedEntityStrict();
-		if(this._sectionStart + 1 < this._index && !this._xmlMode){
-			this._parseLegacyEntity();
+		if(this._sectionStart + 1 !== this._index){
+			this._parseNamedEntityStrict();
+
+			if(this._sectionStart + 1 < this._index){
+				if(!isAttributeState(this._baseState) && !this._xmlMode){
+					this._parseLegacyEntity();
+				}
+			} else {
+				this._sectionStart++;
+			}
 		}
 		this._state = this._baseState;
 	} else if((c < "a" || c > "z") && (c < "A" || c > "Z") && (c < "0" || c > "9")){
@@ -811,13 +846,15 @@ _$[IN_NAMED_ENTITY] = function(c){
 
 _$[IN_NUMERIC_ENTITY] = function(c){
 	if(c === ";"){
-		this._decodeNumericEntity(2, 10);
-		this._sectionStart++;
-	} else if(c < "0" || c > "9"){
-		if(!this._xmlMode){
+		if(this._sectionStart + 2 !== this._index){
 			this._decodeNumericEntity(2, 10);
-		} else {
+			this._sectionStart++;
+		}
+	} else if(c < "0" || c > "9"){
+		if(this._xmlMode || this._sectionStart + 3 === this._index){
 			this._state = this._baseState;
+		} else {
+			this._decodeNumericEntity(2, 10);
 		}
 		this._index--;
 	}
@@ -828,10 +865,10 @@ _$[IN_HEX_ENTITY] = function(c){
 		this._decodeNumericEntity(3, 16);
 		this._sectionStart++;
 	} else if((c < "a" || c > "f") && (c < "A" || c > "F") && (c < "0" || c > "9")){
-		if(!this._xmlMode){
-			this._decodeNumericEntity(3, 16);
-		} else {
+		if(this._xmlMode || this._sectionStart + 3 === this._index){
 			this._state = this._baseState;
+		} else {
+			this._decodeNumericEntity(3, 16);
 		}
 		this._index--;
 	}
@@ -846,7 +883,7 @@ Tokenizer.prototype._parseNamedEntityStrict = function(){
 
 		if(map.hasOwnProperty(entity)){
 			this._emitPartial(map[entity]);
-			this._sectionStart = this._index + 1;
+			this._sectionStart = this._index;
 		}
 	}
 };
@@ -883,7 +920,11 @@ Tokenizer.prototype._decodeNumericEntity = function(offset, base){
 		this._emitPartial(decodeCodePoint(parsed));
 		this._sectionStart = this._index;
 	} else {
-		this._sectionStart--;
+		if(base === 10){
+			this._sectionStart -= 2;
+		} else {
+			this._sectionStart -= 3;
+		}
 	}
 
 	this._state = this._baseState;
@@ -959,65 +1000,74 @@ Tokenizer.prototype.end = function(chunk){
 
 Tokenizer.prototype._finish = function(){
 	//if there is remaining data, emit it in a reasonable way
-	if(this._sectionStart < this._index){
-		this._handleTrailingData();
-	}
-
-	this._cbs.onend();
-};
-
-Tokenizer.prototype._handleTrailingData = function(){
 	var data = this._buffer.substr(this._sectionStart);
 
-	if(this._state === IN_CDATA || this._state === AFTER_CDATA_1 || this._state === AFTER_CDATA_2){
-		this._cbs.oncdata(data);
+	if(
+		this._state === AFTER_DOCTYPE_NAME ||
+		this._state === AFTER_DT_PUBLIC ||
+		this._state === BOGUS_EVIL_DOCTYPE ||
+		this._state === AFTER_DT_SYSTEM ||
+		this._state === DT_BETWEEN_PUB_SYS ||
+		this._state === AFTER_DT_SYSTEM_IDENT
+	){
+		this._cbs.ondtquirksend();
+	} else if(this._state === DT_PUBLIC_DQ || this._state === DT_PUBLIC_SQ){
+		this._cbs.ondoctypepublic(data);
+		this._cbs.ondtquirksend();
+	} else if(this._state === DT_SYSTEM_DQ || this._state === DT_SYSTEM_SQ){
+		this._cbs.ondoctypesystem(data);
+		this._cbs.ondtquirksend();
+	} else if(this._state === BEFORE_DOCTYPE_NAME){
+		this._cbs.ondoctypename("");
+		this._cbs.ondtquirksend();
+	} else if(this._state === DOCTYPE_NAME){
+		this._cbs.ondoctypename(data);
+		this._cbs.ondtquirksend();
+	} else if(this._state === SEQUENCE){
+		this._state = this._baseState;
+		this._finish();
 	} else if(
+		this._state === MARKUP_DECLARATION_OPEN ||
+		this._state === BEFORE_COMMENT ||
 		this._state === COMMENT ||
-		this._state === COMMENT_END_DASH ||
-		this._state === COMMENT_END ||
 		this._state === BOGUS_COMMENT ||
-		this._state === COMMENT_START ||
-		this._state === COMMENT_END_BANG
+		this._state === COMMENT_START
 	){
 		this._cbs.oncomment(data);
+	} else if(this._state === COMMENT_START_DASH || this._state === COMMENT_END_DASH){
+		// parse error
+		this._cbs.oncomment(data.slice(0, -1));
+	} else if(this._state === COMMENT_END){
+		// parse error
+		this._cbs.oncomment(data.slice(0, -2));
+	} else if(this._state === COMMENT_END_BANG){
+		// parse error
+		this._cbs.oncomment(data.slice(0, -3));
+	} else if(data.length === 0){
+		//we're done
+	} else if(this._state === IN_CDATA || this._state === AFTER_CDATA_1 || this._state === AFTER_CDATA_2){
+		this._cbs.oncdata(data);
 	} else if(this._state === IN_NAMED_ENTITY && !this._xmlMode){
 		this._parseLegacyEntity();
 		if(this._sectionStart < this._index){
 			this._state = this._baseState;
-			this._handleTrailingData();
+			this._finish();
 		}
 	} else if(this._state === IN_NUMERIC_ENTITY && !this._xmlMode){
 		this._decodeNumericEntity(2, 10);
 		if(this._sectionStart < this._index){
 			this._state = this._baseState;
-			this._handleTrailingData();
+			this._finish();
 		}
 	} else if(this._state === IN_HEX_ENTITY && !this._xmlMode){
 		this._decodeNumericEntity(3, 16);
 		if(this._sectionStart < this._index){
 			this._state = this._baseState;
-			this._handleTrailingData();
+			this._finish();
 		}
-	} else if(this._state === SEQUENCE){
-
 	} else if(
-		this._state === BEFORE_DOCTYPE_NAME ||
-		this._state === DOCTYPE_NAME ||
-		this._state === AFTER_DOCTYPE_NAME ||
-		this._state === AFTER_DT_PUBLIC ||
-		this._state === BOGUS_EVIL_DOCTYPE ||
-		this._state === AFTER_DT_SYSTEM ||
-		this._state === DT_SYSTEM_DQ ||
-		this._state === DT_SYSTEM_SQ ||
-		this._state === DT_PUBLIC_DQ ||
-		this._state === DT_PUBLIC_SQ ||
-		this._state === DT_BETWEEN_PUB_SYS ||
-		this._state === AFTER_DT_SYSTEM_IDENT
-	){
-		//TODO emit remaining PUBLIC/SYSTEM data
-		this._cbs.ondtquirksend();
-	}  else if(
 		this._state !== TAG_NAME &&
+		this._state !== AFTER_CLOSING_TAG_NAME &&
 		this._state !== BEFORE_ATTRIBUTE_NAME &&
 		this._state !== BEFORE_ATTRIBUTE_VALUE &&
 		this._state !== AFTER_ATTRIBUTE_NAME &&
@@ -1032,6 +1082,8 @@ Tokenizer.prototype._handleTrailingData = function(){
 	}
 	//else, ignore remaining data
 	//TODO add a way to remove current tag
+
+	this._cbs.onend();
 };
 
 Tokenizer.prototype.reset = function(){
