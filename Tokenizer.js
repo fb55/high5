@@ -140,36 +140,36 @@ _$[SEQUENCE] = function(c){
 function dataState(LESS_THAN_SIGN_STATE){
 	var consumeText = textState(LESS_THAN_SIGN_STATE);
 
-    return function(c){
-        if(this._decodeEntities && c === "&"){
-            if(this._index > this._sectionStart){
-                this._cbs.ontext(this._getSection());
-            }
-            this._baseState = this._state;
-            this._state = BEFORE_ENTITY;
-            this._sectionStart = this._index;
-        } else {
+	return function(c){
+		if(this._decodeEntities && c === "&"){
+			if(this._index > this._sectionStart){
+				this._cbs.ontext(this._getSection());
+			}
+			this._baseState = this._state;
+			this._state = BEFORE_ENTITY;
+			this._sectionStart = this._index;
+		} else {
 			consumeText(c);
-        }
-    };
+		}
+	};
 }
 
 function textState(LESS_THAN_SIGN_STATE){
-    return function(c){
-        if(c === "<"){
-            if(this._index > this._sectionStart){
-                this._cbs.ontext(this._getSection());
-            }
-            this._state = LESS_THAN_SIGN_STATE;
-            this._sectionStart = this._index;
-        } else if(c === "\0"){
-            // parse error
-            if(this._index > this._sectionStart){
-                this._cbs.ontext(this._getSection());
-            }
-            this._cbs.ontext(REPLACEMENT_CHARACTER);
-        }
-    };
+	return function(c){
+		if(c === "<"){
+			if(this._index > this._sectionStart){
+				this._cbs.ontext(this._getSection());
+			}
+			this._state = LESS_THAN_SIGN_STATE;
+			this._sectionStart = this._index;
+		} else if(c === "\0"){
+			// parse error
+			if(this._index > this._sectionStart){
+				this._cbs.ontext(this._getSection());
+			}
+			this._cbs.ontext(REPLACEMENT_CHARACTER);
+		}
+	};
 }
 
 // 8.2.4.1 Data state
@@ -193,13 +193,13 @@ _$[SCRIPT_DATA_STATE] = textState(SCRIPT_DATA_LESS_THAN_SIGN_STATE);
 // 12.2.4.7 PLAINTEXT state
 
 _$[PLAINTEXT_STATE] = function(c){
-    if (c === "\0"){
-        // parse error
-        if(this._index > this._sectionStart){
-            this._cbs.ontext(this._getSection());
-        }
-        this._cbs.ontext(REPLACEMENT_CHARACTER);
-    }
+	if (c === "\0"){
+		// parse error
+		if(this._index > this._sectionStart){
+			this._cbs.ontext(this._getSection());
+		}
+		this._cbs.ontext(REPLACEMENT_CHARACTER);
+	}
 };
 
 // 8.2.4.8 Tag open state
@@ -258,15 +258,15 @@ _$[TAG_NAME] = function(c){
 
 function lessThanSignState(BASE_STATE, NEXT_STATE){
 	return function(c){
-	    if(c === "/"){
+		if(c === "/"){
 			this._state = SEQUENCE;
 			this._sequenceIndex = 0;
 			this._nextState = NEXT_STATE;
 			this._baseState = BASE_STATE;
-	    } else {
-	        this._state = BASE_STATE;
-	        this._index--;
-	    }
+		} else {
+			this._state = BASE_STATE;
+			this._index--;
+		}
 	};
 }
 
@@ -813,7 +813,7 @@ Tokenizer.prototype._parseNamedEntityStrict = function(){
 	//offset = 1
 	if(this._sectionStart + 1 < this._index){
 		var entity = this._buffer.substring(this._sectionStart + 1, this._index),
-		    map = this._xmlMode ? xmlMap : entityMap;
+			map = this._xmlMode ? xmlMap : entityMap;
 
 		if(map.hasOwnProperty(entity)){
 			this._emitPartial(map[entity]);
@@ -826,7 +826,7 @@ Tokenizer.prototype._parseNamedEntityStrict = function(){
 //parses legacy entities (without trailing semicolon)
 Tokenizer.prototype._parseLegacyEntity = function(){
 	var start = this._sectionStart + 1,
-	    limit = this._index - start;
+		limit = this._index - start;
 
 	if(limit > 6) limit = 6; //the max length of legacy entities is 6
 
