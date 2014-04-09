@@ -58,6 +58,8 @@ var decodeCodePoint = require("entities/lib/decode_codepoint.js"),
     IN_NUMERIC_ENTITY         = "IN_NUMERIC_ENTITY",
     IN_HEX_ENTITY             = "IN_HEX_ENTITY", //X
 
+    RCDATA_LESS_THAN_SIGN_STATE = "RCDATA_LESS_THAN_SIGN_STATE",
+    RCDATA_END_TAG_NAME_STATE = "RCDATA_END_TAG_NAME_STATE",
     BEFORE_DOCTYPE_NAME       = "BEFORE_DOCTYPE_NAME",
     DOCTYPE_NAME              = "DOCTYPE_NAME",
     AFTER_DOCTYPE_NAME        = "AFTER_DOCTYPE_NAME",
@@ -239,22 +241,58 @@ _$[END_TAG_OPEN] = function(c){
 		this._state = IN_CLOSING_TAG_NAME;
 		this._sectionStart = this._index;
 	} else if(c === ">"){
-		//ignored
+		// parse error
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else {
+		// parse error
 		this._state = BOGUS_COMMENT;
 		this._sectionStart = this._index;
 	}
 };
 
 // 8.2.4.10 Tag name state
-//FIXME simplified
 
 _$[TAG_NAME] = function(c){
-	if(c === "/" || c === ">" || whitespace(c)){
+	if(whitespace(c)){
 		this._cbs.onopentagname(this._getEndingSection());
 		this._state = BEFORE_ATTRIBUTE_NAME;
+	} else if(c === "/"){
+		this._cbs.onopentagname(this._getEndingSection());
+		this._state = SELF_CLOSING_START_TAG;
+	} else if(c === ">"){
+		this._cbs.onopentagname(this._getEndingSection());
+		this._state = DATA;
+	} //TODO c === "\0"
+};
+
+// 12.2.4.11 RCDATA less-than sign state
+
+_$[RCDATA_LESS_THAN_SIGN_STATE] = function(c){
+    if(c === "/"){
+		this._state = SEQUENCE;
+		this._sequenceIndex = 0;
+		this._nextState = RCDATA_END_TAG_NAME_STATE;
+		this._baseState = RCDATA_STATE;
+    } else {
+        this._state = RCDATA_STATE;
+        this._index--;
+    }
+};
+
+//skipped 12.2.4.12 RCDATA end tag open state (using SEQUENCE instead)
+
+// 12.2.4.13 RCDATA end tag name state
+
+_$[RCDATA_END_TAG_NAME_STATE] = function(c){
+	if(whitespace(c) || c === "/"){
+		this._cbs.onclosetag(this._getEndingSection());
+		this._state = AFTER_CLOSING_TAG_NAME;
+	} else if(c === ">"){
+		this._sectionStart = this._index + 1;
+		this._state = DATA;
+	} else {
+		this._state = RCDATA_STATE;
 		this._index--;
 	}
 };
