@@ -85,6 +85,10 @@ function isLetter(c){
 	return (c >= "a" && c <= "z") || (c >= "A" && c <= "Z");
 }
 
+function isAttributeState(state){
+	return state === ATTRIBUTE_VALUE_NQ || state === ATTRIBUTE_VALUE_SQ || state === ATTRIBUTE_VALUE_DQ;
+}
+
 function characterState(char, SUCCESS){
 	return function(c){
 		if(c === char) this._state = SUCCESS;
@@ -792,7 +796,7 @@ _$[IN_NAMED_ENTITY] = function(c){
 	} else if((c < "a" || c > "z") && (c < "A" || c > "Z") && (c < "0" || c > "9")){
 		if(this._xmlMode);
 		else if(this._sectionStart + 1 === this._index);
-		else if(this._baseState !== DATA){
+		else if(isAttributeState(this._baseState)){
 			if(c !== "="){
 				this._parseNamedEntityStrict();
 			}
@@ -1051,7 +1055,7 @@ Tokenizer.prototype._getPartialSection = function(){
 };
 
 Tokenizer.prototype._emitPartial = function(value){
-	if(this._baseState !== DATA){
+	if(isAttributeState(this._baseState)){
 		this._cbs.onattribdata(value); //TODO implement the new event
 	} else {
 		this._cbs.ontext(value);
