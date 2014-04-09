@@ -87,6 +87,17 @@ function characterState(char, SUCCESS){
 	};
 }
 
+function ifElseState(char, SUCCESS, FAILURE){
+	return function(c){
+		if(c === char){
+			this._state = SUCCESS;
+		} else {
+			 this._state = FAILURE;
+			 this._index--;
+		}
+	};
+}
+
 function Tokenizer(options, cbs){
 	this._state = DATA;
 	this._buffer = "";
@@ -504,7 +515,7 @@ _$[COMMENT_START_DASH] = function(c){
 // 8.2.4.49 Comment end dash state
 
 _$[COMMENT]          = characterState("-", COMMENT_END_DASH);
-_$[COMMENT_END_DASH] = characterState("-", COMMENT_END);
+_$[COMMENT_END_DASH] = ifElseState("-", COMMENT_END, COMMENT);
 
 // 8.2.4.50 Comment end state
 
@@ -714,7 +725,7 @@ _$[BEFORE_CDATA] = function(c){
 };
 
 _$[IN_CDATA] = characterState("]", AFTER_CDATA_1);
-_$[AFTER_CDATA_1] = characterState("]", AFTER_CDATA_2);
+_$[AFTER_CDATA_1] = ifElseState("]", AFTER_CDATA_2, IN_CDATA);
 
 _$[AFTER_CDATA_2] = function(c){
 	if(c === ">"){
