@@ -55,6 +55,10 @@ var decodeCodePoint = require("entities/lib/decode_codepoint.js"),
     RAWTEXT_LESS_THAN_SIGN_STATE = "RAWTEXT_LESS_THAN_SIGN_STATE",
     RAWTEXT_END_TAG_NAME_STATE = "RAWTEXT_END_TAG_NAME_STATE",
 
+    SCRIPT_DATA_LESS_THAN_SIGN_STATE = "SCRIPT_DATA_LESS_THAN_SIGN_STATE",
+    SCRIPT_DATA_END_TAG_NAME_STATE = "SCRIPT_DATA_END_TAG_NAME_STATE",
+    SCRIPT_DATA_ESCAPE_START_STATE = "SCRIPT_DATA_ESCAPE_START_STATE",
+    SCRIPT_DATA_ESCAPE_START_DASH_STATE = "SCRIPT_DATA_ESCAPE_START_DASH_STATE",
     BEFORE_DOCTYPE_NAME       = "BEFORE_DOCTYPE_NAME",
     DOCTYPE_NAME              = "DOCTYPE_NAME",
     AFTER_DOCTYPE_NAME        = "AFTER_DOCTYPE_NAME",
@@ -305,6 +309,36 @@ _$[RAWTEXT_LESS_THAN_SIGN_STATE] = lessThanSignState(RAWTEXT_STATE, RAWTEXT_END_
 // 12.2.4.16 RAWTEXT end tag name state
 
 _$[RAWTEXT_END_TAG_NAME_STATE] = endTagNameState(RAWTEXT_STATE);
+
+// 12.2.4.17 Script data less-than sign state
+
+_$[SCRIPT_DATA_LESS_THAN_SIGN_STATE] = function(c){
+	if(c === "/"){
+		this._state = SEQUENCE;
+		this._sequenceIndex = 0;
+		this._nextState = SCRIPT_DATA_END_TAG_NAME_STATE;
+		this._baseState = SCRIPT_DATA_STATE;
+	} else if(c === "!"){
+		this._state = SCRIPT_DATA_ESCAPE_START_STATE;
+	} else {
+		this._state = SCRIPT_DATA_STATE;
+		this._index--;
+	}
+};
+
+//skipped 12.2.4.18 Script data end tag open state
+
+// 12.2.4.19 Script data end tag name state
+
+_$[SCRIPT_DATA_END_TAG_NAME_STATE] = endTagNameState(SCRIPT_DATA_STATE);
+
+// 12.2.4.20 Script data escape start state
+
+_$[SCRIPT_DATA_ESCAPE_START_STATE] = ifElseState("-", SCRIPT_DATA_ESCAPE_START_DASH_STATE, SCRIPT_DATA_STATE);
+
+// 12.2.4.21 Script data escape start dash state
+
+_$[SCRIPT_DATA_ESCAPE_START_DASH_STATE] = ifElseState("-", SCRIPT_DATA_ESCAPED_DASH_DASH_STATE, SCRIPT_DATA_STATE);
 
 // 8.2.4.34 Before attribute name state
 
