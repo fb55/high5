@@ -1,0 +1,31 @@
+{
+  "name": "high5",
+  "version": "0.0.0-prev",
+  "description": "(eventually) spec-compliant html 5 parser",
+  "main": "Parser.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node test/html5lib-tokenizer.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fb55/high5.git"
+  },
+  "keywords": [
+    "html5",
+    "parser",
+    "tokenizer"
+  ],
+  "author": "Felix Böhm <me@feedic.com>",
+  "license": "BSD",
+  "bugs": {
+    "url": "https://github.com/fb55/high5/issues"
+  },
+  "homepage": "https://github.com/fb55/high5",
+  "dependencies": {
+    "domelementtype": "1",
+    "entities": "1.0"
+  }
+}
