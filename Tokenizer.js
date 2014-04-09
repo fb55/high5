@@ -52,6 +52,9 @@ var decodeCodePoint = require("entities/lib/decode_codepoint.js"),
 
     RCDATA_LESS_THAN_SIGN_STATE = "RCDATA_LESS_THAN_SIGN_STATE",
     RCDATA_END_TAG_NAME_STATE = "RCDATA_END_TAG_NAME_STATE",
+    RAWTEXT_LESS_THAN_SIGN_STATE = "RAWTEXT_LESS_THAN_SIGN_STATE",
+    RAWTEXT_END_TAG_NAME_STATE = "RAWTEXT_END_TAG_NAME_STATE",
+
     BEFORE_DOCTYPE_NAME       = "BEFORE_DOCTYPE_NAME",
     DOCTYPE_NAME              = "DOCTYPE_NAME",
     AFTER_DOCTYPE_NAME        = "AFTER_DOCTYPE_NAME",
@@ -242,36 +245,55 @@ _$[TAG_NAME] = function(c){
 	} //TODO c === "\0"
 };
 
+function lessThanSignState(BASE_STATE, NEXT_STATE){
+	return function(c){
+	    if(c === "/"){
+			this._state = SEQUENCE;
+			this._sequenceIndex = 0;
+			this._nextState = NEXT_STATE;
+			this._baseState = BASE_STATE;
+	    } else {
+	        this._state = BASE_STATE;
+	        this._index--;
+	    }
+	};
+}
+
+function endTagNameState(BASE_STATE){
+	//BASE_STATE should already be available as _baseState, so maybe just add the same method multiple times?
+	return function(c){
+		if(whitespace(c) || c === "/"){
+			this._cbs.onclosetag(this._getEndingSection());
+			this._state = AFTER_CLOSING_TAG_NAME;
+		} else if(c === ">"){
+			this._sectionStart = this._index + 1;
+			this._state = DATA;
+		} else {
+			this._state = BASE_STATE;
+			this._index--;
+		}
+	};
+}
+
 // 12.2.4.11 RCDATA less-than sign state
 
-_$[RCDATA_LESS_THAN_SIGN_STATE] = function(c){
-    if(c === "/"){
-		this._state = SEQUENCE;
-		this._sequenceIndex = 0;
-		this._nextState = RCDATA_END_TAG_NAME_STATE;
-		this._baseState = RCDATA_STATE;
-    } else {
-        this._state = RCDATA_STATE;
-        this._index--;
-    }
-};
+_$[RCDATA_LESS_THAN_SIGN_STATE] = lessThanSignState(RCDATA_STATE, RCDATA_END_TAG_NAME_STATE);
 
 //skipped 12.2.4.12 RCDATA end tag open state (using SEQUENCE instead)
 
 // 12.2.4.13 RCDATA end tag name state
 
-_$[RCDATA_END_TAG_NAME_STATE] = function(c){
-	if(whitespace(c) || c === "/"){
-		this._cbs.onclosetag(this._getEndingSection());
-		this._state = AFTER_CLOSING_TAG_NAME;
-	} else if(c === ">"){
-		this._sectionStart = this._index + 1;
-		this._state = DATA;
-	} else {
-		this._state = RCDATA_STATE;
-		this._index--;
-	}
-};
+_$[RCDATA_END_TAG_NAME_STATE] = endTagNameState(RCDATA_STATE);
+
+// 12.2.4.14 RAWTEXT less-than sign state
+
+_$[RAWTEXT_LESS_THAN_SIGN_STATE] = lessThanSignState(RAWTEXT_STATE, RAWTEXT_END_TAG_NAME_STATE);
+
+//skipped 12.2.4.15 RAWTEXT end tag open state
+
+// 12.2.4.16 RAWTEXT end tag name state
+
+_$[RAWTEXT_END_TAG_NAME_STATE] = endTagNameState(RAWTEXT_STATE);
 
 // 8.2.4.34 Before attribute name state
 
