@@ -44,14 +44,6 @@ var decodeCodePoint = require("entities/lib/decode_codepoint.js"),
     AFTER_CDATA_1             = "AFTER_CDATA_1",  // ]
     AFTER_CDATA_2             = "AFTER_CDATA_2",  // ]
 
-    //special tags
-    BEFORE_SPECIAL            = "BEFORE_SPECIAL", //S
-    BEFORE_SPECIAL_END        = "BEFORE_SPECIAL_END", //S
-    BEFORE_SCRIPT             = "BEFORE_SCRIPT", //T
-    AFTER_SCRIPT              = "AFTER_SCRIPT", //T
-    BEFORE_STYLE              = "BEFORE_STYLE", //E
-    AFTER_STYLE               = "AFTER_STYLE", //E
-
     BEFORE_ENTITY             = "BEFORE_ENTITY", //&
     BEFORE_NUMERIC_ENTITY     = "BEFORE_NUMERIC_ENTITY", //#
     IN_NAMED_ENTITY           = "IN_NAMED_ENTITY",
@@ -76,13 +68,7 @@ var decodeCodePoint = require("entities/lib/decode_codepoint.js"),
 
     SEQUENCE                  = "SEQUENCE",
 
-    REPLACEMENT_CHARACTER     = "\ufffd",
-
-    j = 0,
-
-    SPECIAL_NONE              = j++,
-    SPECIAL_SCRIPT            = j++,
-    SPECIAL_STYLE             = j++;
+    REPLACEMENT_CHARACTER     = "\ufffd";
 
 function whitespace(c){
 	return c === " " || c === "\n" || c === "\t" || c === "\f" || c === "\r";
@@ -107,7 +93,6 @@ function Tokenizer(options, cbs){
 	this._nextState = DATA;
 	this._sequence = "";
 	this._sequenceIndex = 0;
-	this._special = SPECIAL_NONE;
 	this._cbs = cbs;
 	this._running = true;
 	this._ended = false;
@@ -142,7 +127,7 @@ function dataState(LESS_THAN_SIGN_STATE){
 	var consumeText = textState(LESS_THAN_SIGN_STATE);
 
     return function(c){
-        if(this._decodeEntities && this._special === SPECIAL_NONE && c === "&"){
+        if(this._decodeEntities && c === "&"){
             if(this._index > this._sectionStart){
                 this._cbs.ontext(this._getSection());
             }
@@ -206,19 +191,17 @@ _$[PLAINTEXT_STATE] = function(c){
 // 8.2.4.8 Tag open state
 
 _$[TAG_OPEN] = function(c){
-	if(c === "/"){
-		this._state = END_TAG_OPEN;
-	} else if(c === ">" || this._special !== SPECIAL_NONE || whitespace(c)) {
-		this._state = DATA;
-	} else if(c === "!"){
+	if(c === "!"){
 		this._state = MARKUP_DECLARATION_OPEN;
 		this._sectionStart = this._index + 1;
-	} else if(c === "?"){
-		this._state = BOGUS_COMMENT;
-		this._sectionStart = this._index;
+	} else if(c === "/"){
+		this._state = END_TAG_OPEN;
 	} else if(isLetter(c)){
-		this._state = (!this._xmlMode && (c === "s" || c === "S")) ?
-						BEFORE_SPECIAL : TAG_NAME;
+		this._state = TAG_NAME;
+		this._sectionStart = this._index;
+	} else if(c === "?"){
+		// parse error
+		this._state = BOGUS_COMMENT;
 		this._sectionStart = this._index;
 	} else {
 		// parse error
@@ -230,14 +213,7 @@ _$[TAG_OPEN] = function(c){
 // 8.2.4.9 End tag open state
 
 _$[END_TAG_OPEN] = function(c){
-	if(this._special !== SPECIAL_NONE){
-		if(c === "s" || c === "S"){
-			this._state = BEFORE_SPECIAL_END;
-		} else {
-			this._state = DATA;
-			this._index--;
-		}
-	} else if(isLetter(c)){
+	if(isLetter(c)){
 		this._state = IN_CLOSING_TAG_NAME;
 		this._sectionStart = this._index;
 	} else if(c === ">"){
@@ -728,62 +704,6 @@ _$[AFTER_CDATA_2] = function(c){
 		this._state = IN_CDATA;
 	}
 	//else: stay in AFTER_CDATA_2 (`]]]>`)
-};
-
-_$[BEFORE_SPECIAL] = function(c){
-	if(c === "c" || c === "C"){
-		this._consumeSequence("ript", BEFORE_SCRIPT, TAG_NAME);
-	} else if(c === "t" || c === "T"){
-		this._consumeSequence("yle", BEFORE_STYLE, TAG_NAME);
-	} else {
-		this._state = TAG_NAME;
-		this._index--; //consume the token again
-	}
-};
-
-_$[BEFORE_SPECIAL_END] = function(c){
-	if(this._special === SPECIAL_SCRIPT && (c === "c" || c === "C")){
-		this._consumeSequence("ript", AFTER_SCRIPT, DATA);
-	} else if(this._special === SPECIAL_STYLE && (c === "t" || c === "T")){
-		this._consumeSequence("yle", AFTER_STYLE, DATA);
-	}
-	else this._state = DATA;
-};
-
-_$[BEFORE_SCRIPT] = function(c){
-	if(c === "/" || c === ">" || whitespace(c)){
-		this._special = SPECIAL_SCRIPT;
-	}
-	this._state = TAG_NAME;
-	this._index--; //consume the token again
-};
-
-_$[AFTER_SCRIPT] = function(c){
-	if(c === ">" || whitespace(c)){
-		this._special = SPECIAL_NONE;
-		this._state = IN_CLOSING_TAG_NAME;
-		this._sectionStart = this._index - 6;
-		this._index--; //reconsume the token
-	}
-	else this._state = DATA;
-};
-
-_$[BEFORE_STYLE] = function(c){
-	if(c === "/" || c === ">" || whitespace(c)){
-		this._special = SPECIAL_STYLE;
-	}
-	this._state = TAG_NAME;
-	this._index--; //consume the token again
-};
-
-_$[AFTER_STYLE] = function(c){
-	if(c === ">" || whitespace(c)){
-		this._special = SPECIAL_NONE;
-		this._state = IN_CLOSING_TAG_NAME;
-		this._sectionStart = this._index - 5;
-		this._index--; //reconsume the token
-	}
-	else this._state = DATA;
 };
 
 _$[BEFORE_ENTITY] = function(c){
