@@ -104,6 +104,7 @@ function Tokenizer(options, cbs){
 	this._baseState = DATA;
 	this._nextState = DATA;
 	this._sequence = "";
+	this._sequenceIndex = 0;
 	this._special = SPECIAL_NONE;
 	this._cbs = cbs;
 	this._running = true;
@@ -119,13 +120,14 @@ Tokenizer.prototype._consumeSequence = function(seq, SUCCESS, FAILURE){
 	this._nextState = SUCCESS;
 	this._baseState = FAILURE;
 	this._state = SEQUENCE;
+	this._sequenceIndex = 0;
 };
 
 _$[SEQUENCE] = function(c){
-	var comp = this._sequence.charAt(0);
+	var comp = this._sequence.charAt(this._sequenceIndex);
 	if(c === comp || c.toLowerCase() === comp){
-		this._sequence = this._sequence.substr(1);
-		if(this._sequence === ""){
+		this._sequenceIndex += 1;
+		if(this._sequenceIndex === this._sequence.length){
 			this._state = this._nextState;
 		}
 	} else {
