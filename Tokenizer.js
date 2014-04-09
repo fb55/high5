@@ -6,6 +6,11 @@ var decodeCodePoint = require("entities/lib/decode_codepoint.js"),
     xmlMap    = require("entities/maps/xml.json"),
 
     DATA                      = "DATA",
+    RCDATA_STATE              = "RCDATA_STATE",
+    RAWTEXT_STATE             = "RAWTEXT_STATE",
+    SCRIPT_DATA_STATE         = "SCRIPT_DATA_STATE",
+    PLAINTEXT_STATE           = "PLAINTEXT_STATE",
+
     TAG_OPEN                  = "TAG_OPEN", //after <
     TAG_NAME                  = "TAG_NAME",
     SELF_CLOSING_START_TAG    = "SELF_CLOSING_START_TAG",
@@ -69,6 +74,8 @@ var decodeCodePoint = require("entities/lib/decode_codepoint.js"),
 
 	SEQUENCE                  = "SEQUENCE",
 
+    REPLACEMENT_CHARACTER     = "\ufffd",
+
     j = 0,
 
     SPECIAL_NONE              = j++,
@@ -127,27 +134,70 @@ _$[SEQUENCE] = function(c){
 	}
 };
 
+function dataState(LESS_THAN_SIGN_STATE){
+	var consumeText = textState(LESS_THAN_SIGN_STATE);
+
+    return function(c){
+        if(this._decodeEntities && this._special === SPECIAL_NONE && c === "&"){
+            if(this._index > this._sectionStart){
+                this._cbs.ontext(this._getSection());
+            }
+            this._baseState = this._state;
+            this._state = BEFORE_ENTITY;
+            this._sectionStart = this._index;
+        } else {
+			consumeText(c);
+        }
+    };
+}
+
+function textState(LESS_THAN_SIGN_STATE){
+    return function(c){
+        if(c === "<"){
+            if(this._index > this._sectionStart){
+                this._cbs.ontext(this._getSection());
+            }
+            this._state = LESS_THAN_SIGN_STATE;
+            this._sectionStart = this._index;
+        } else if(c === "\0"){
+            // parse error
+            if(this._index > this._sectionStart){
+                this._cbs.ontext(this._getSection());
+            }
+            this._cbs.ontext(REPLACEMENT_CHARACTER);
+        }
+    };
+}
 
 // 8.2.4.1 Data state
 
-_$[DATA] = function(c){
-	if(c === "<"){
-		if(this._index > this._sectionStart){
-			this._cbs.ontext(this._getSection());
-		}
-		this._state = TAG_OPEN;
-		this._sectionStart = this._index;
-	} else if(this._decodeEntities && this._special === SPECIAL_NONE && c === "&"){
-		if(this._index > this._sectionStart){
-			this._cbs.ontext(this._getSection());
-		}
-		this._baseState = DATA;
-		this._state = BEFORE_ENTITY;
-		this._sectionStart = this._index;
-	} //  parse error (c === "\0")
-};
+_$[DATA] = dataState(TAG_OPEN);
 
-//TODO 8.2.4.5 RAWTEXT state
+// 12.2.4.3 RCDATA state
+
+_$[RCDATA_STATE] = dataState(RCDATA_LESS_THAN_SIGN_STATE);
+
+// 12.2.4.5 RAWTEXT state
+
+_$[RAWTEXT_STATE] = textState(RAWTEXT_LESS_THAN_SIGN_STATE);
+
+
+// 12.2.4.6 Script data state
+
+_$[SCRIPT_DATA_STATE] = textState(SCRIPT_DATA_LESS_THAN_SIGN_STATE);
+
+
+// 12.2.4.7 PLAINTEXT state
+
+_$[PLAINTEXT_STATE] = function(c){
+    if (c === "\0"){
+        // parse error
+        if(this._index > this._sectionStart){
+            this._cbs.ontext(this._getSection());
+        }
+        this._cbs.ontext(REPLACEMENT_CHARACTER);
+    }
+};
 
 // 8.2.4.8 Tag open state
 
