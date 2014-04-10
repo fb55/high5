@@ -51,13 +51,10 @@ function getCollector(){
 		token: token,
 		onopentagname: function(n){
 			attribs = {};
-			tag = ["StartTag", n.toLowerCase().replace(/\0/g, "\ufffd"), attribs];
+			tag = ["StartTag", n.toLowerCase(), attribs];
 		},
 		onclosetag: function(n){
-			tag = ["EndTag", n.toLowerCase().replace(/\0/g, "\ufffd")];
-		},
-		onclosetagend: function(){
-			token.push(tag);
+			token.push(["EndTag", n.toLowerCase()]);
 		},
 		ontext: function(t){
 			token.push(["Character", t]);

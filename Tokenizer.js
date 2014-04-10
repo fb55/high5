@@ -251,6 +251,7 @@ _$[PLAINTEXT_STATE] = function(c){
 // 8.2.4.8 Tag open state
 
 _$[TAG_OPEN] = function(c){
+	//TODO recognize XML mode
 	if(c === "!"){
 		this._state = MARKUP_DECLARATION_OPEN;
 		this._sectionStart = this._index + 1;
@@ -258,6 +259,7 @@ _$[TAG_OPEN] = function(c){
 		this._state = END_TAG_OPEN;
 	} else if(isLetter(c)){
 		this._state = TAG_NAME;
+		this._nameBuffer = "";
 		this._sectionStart = this._index;
 	} else if(c === "?"){
 		// parse error
@@ -274,6 +276,7 @@ _$[TAG_OPEN] = function(c){
 _$[END_TAG_OPEN] = function(c){
 	if(isLetter(c)){
 		this._state = IN_CLOSING_TAG_NAME;
+		this._nameBuffer = "";
 		this._sectionStart = this._index;
 	} else if(c === ">"){
 		// parse error
@@ -291,17 +294,19 @@ _$[END_TAG_OPEN] = function(c){
 
 _$[TAG_NAME] = function(c){
 	if(whitespace(c)){
-		this._cbs.onopentagname(this._getEndingSection());
+		this._cbs.onopentagname(this._nameBuffer + this._getEndingSection());
 		this._state = BEFORE_ATTRIBUTE_NAME;
 	} else if(c === "/"){
-		this._cbs.onopentagname(this._getEndingSection());
+		this._cbs.onopentagname(this._nameBuffer + this._getEndingSection());
 		this._state = SELF_CLOSING_START_TAG;
 	} else if(c === ">"){
-		this._cbs.onopentagname(this._getSection());
+		this._cbs.onopentagname(this._nameBuffer + this._getSection());
 		this._cbs.onopentagend();
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
-	} //TODO c === "\0"
+	} else if(c === "\0"){
+		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
+	}
 };
 
 function lessThanSignState(BASE_STATE, NEXT_STATE){
@@ -320,11 +325,10 @@ function lessThanSignState(BASE_STATE, NEXT_STATE){
 
 _$[END_TAG_NAME_STATE] = function(c){
 	if(whitespace(c) || c === "/"){
-		this._cbs.onclosetag(this._sequence);
+		this._nameBuffer = this._sequence;
 		this._state = AFTER_CLOSING_TAG_NAME;
 	} else if(c === ">"){
 		this._cbs.onclosetag(this._sequence);
-		this._cbs.onclosetagend();
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else {
@@ -660,20 +664,20 @@ _$[COMMENT_END_BANG] = function(c){
 
 _$[IN_CLOSING_TAG_NAME] = function(c){
 	if(whitespace(c) || c === "/"){
-		this._cbs.onclosetag(this._getEndingSection());
+		this._nameBuffer += this._getEndingSection();
 		this._state = AFTER_CLOSING_TAG_NAME;
 	} else if(c === ">"){
-		this._cbs.onclosetag(this._getSection());
-		this._cbs.onclosetagend();
-		this._sectionStart = this._index + 1;
+		this._cbs.onclosetag(this._nameBuffer + this._getPartialSection());
 		this._state = DATA;
-	} //TODO c === "\0"
+	} else if(c === "\0"){
+		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
+	}
 };
 
 _$[AFTER_CLOSING_TAG_NAME] = function(c){
 	//skip everything until ">"
 	if(c === ">"){
-		this._cbs.onclosetagend();
+		this._cbs.onclosetag(this._nameBuffer);
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	}
