@@ -118,7 +118,7 @@ function ifElseState(char, SUCCESS, FAILURE){
 	};
 }
 
-function Tokenizer(options, cbs){
+function Tokenizer(cbs, options){
 	this._state = DATA;
 	this._buffer = "";
 	this._sectionStart = 0;
