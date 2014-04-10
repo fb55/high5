@@ -16,8 +16,10 @@ describe("html5lib-tests Tokenizer", function(){
 		var file = fs.readFileSync(path.join(root, n)),
 		    test = JSON.parse(file.toString());
 
+		if(!test.tests) return;
+
 		describe(n, function(){
-			(test.tests||test.xmlViolationTests).forEach(function(test){
+			test.tests.forEach(function(test){
 				describe(test.description, function(){
 					try {
 						if(test.initialStates){
