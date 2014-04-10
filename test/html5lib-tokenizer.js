@@ -52,10 +52,10 @@ function getCollector(){
 		token: token,
 		onopentagname: function(n){
 			attribs = {};
-			tag = ["StartTag", n.toLowerCase(), attribs];
+			tag = ["StartTag", n.toLowerCase().replace(/\0/g, "\ufffd"), attribs];
 		},
 		onclosetag: function(n){
-			tag = ["EndTag", n.toLowerCase()];
+			tag = ["EndTag", n.toLowerCase().replace(/\0/g, "\ufffd")];
 		},
 		onclosetagend: function(){
 			token.push(tag);
@@ -120,10 +120,10 @@ function reduceCollection(c, esc){
 			return;
 		}
 		t = t.slice(0);
+		if(esc && t[1]) t[1] = unescape(t[1]);
 		switch(t[0]){
 			case "Comment":
 			case "Character":
-				if(esc) t[1] = unescape(t[1]);
 				if(out.length && out[out.length - 1][0] === t[0]){
 					out[out.length - 1][1] += t[1];
 				} else out.push(t);
@@ -148,9 +148,8 @@ function executeTest(test, initialState){
 
 	if(initialState) tokenizer._state = initialState;
 	if(test.lastStartTag) tokenizer._sequence = test.lastStartTag;
-	test.input = preprocessInput(test.input);
 
-	tokenizer.end(test.input);
+	tokenizer.end(preprocessInput(test.input));
 	assert.deepEqual(reduceCollection(collector.token), reduceCollection(test.output, true));
 }
 
