@@ -101,7 +101,6 @@ function getCollector(){
 		ondtquirksend: function(){
 			token[token.length-1][4] = false;
 		},
-		onboguscommentend: noop,
 		oncommentend: noop,
 		ondoctypeend: noop,
 		onend: noop

@@ -515,11 +515,11 @@ _$[SELF_CLOSING_START_TAG] = function(c){
 
 _$[BOGUS_COMMENT] = function(c){
 	if(c === ">"){
-		this._cbs.onboguscomment(this._getPartialSection());
-		this._cbs.onboguscommentend();
+		this._cbs.oncomment(this._getPartialSection());
+		this._cbs.oncommentend();
 		this._state = DATA;
 	} else if(c === "\0"){
-		this._cbs.onboguscomment(this._getPartialSection() + REPLACEMENT_CHARACTER);
+		this._cbs.oncomment(this._getPartialSection() + REPLACEMENT_CHARACTER);
 		this._sectionStart = this._index + 1;
 	}
 };
