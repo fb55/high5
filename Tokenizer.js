@@ -754,20 +754,18 @@ _$[AFTER_DT_PUBLIC] = function(c){
 	}
 };
 
-//TODO split into two
-function doctypeQuotedState(quot, name, NEXT){
+function doctypePublicQuotedState(quot){
 	return function(c){
 		if(c === quot){
-			this[name] += this._getEndingSection();
-			this._state = NEXT;
+			this._valueBuffer += this._getEndingSection();
+			this._state = DT_BETWEEN_PUB_SYS;
 		} else if(c === ">"){
 			// parse error
-			this[name] += this._getPartialSection();
-			this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, false);
-			this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
+			this._cbs.ondoctype(this._nameBuffer, this._valueBuffer + this._getPartialSection(), null, false);
+			this._nameBuffer = this._valueBuffer = null;
 			this._state = DATA;
 		} else if(c === "\0"){
-			this[name] += this._getPartialSection() + REPLACEMENT_CHARACTER;
+			this._valueBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
 		}
 	};
 }
@@ -775,8 +773,8 @@ function doctypeQuotedState(quot, name, NEXT){
 // 8.2.4.58 DOCTYPE public identifier (double-quoted) state
 // 8.2.4.59 DOCTYPE public identifier (single-quoted) state
 
-_$[DT_PUBLIC_DQ] = doctypeQuotedState("\"", "_valueBuffer", DT_BETWEEN_PUB_SYS);
-_$[DT_PUBLIC_SQ] = doctypeQuotedState("'",  "_valueBuffer", DT_BETWEEN_PUB_SYS);
+_$[DT_PUBLIC_DQ] = doctypePublicQuotedState("\"");
+_$[DT_PUBLIC_SQ] = doctypePublicQuotedState("'");
 
 // Ignored 8.2.4.60 After DOCTYPE public identifier state
 // 8.2.4.61 Between DOCTYPE public and system identifiers state
@@ -824,11 +822,27 @@ _$[AFTER_DT_SYSTEM] = function(c){
 	}
 };
 
+function doctypeSystemQuotedState(quot){
+	return function(c){
+		if(c === quot){
+			this._systemBuffer += this._getEndingSection();
+			this._state = AFTER_DT_SYSTEM_IDENT;
+		} else if(c === ">"){
+			// parse error
+			this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer + this._getPartialSection(), false);
+			this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
+			this._state = DATA;
+		} else if(c === "\0"){
+			this._systemBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
+		}
+	};
+}
+
 // 8.2.4.64 DOCTYPE system identifier (double-quoted) state
 // 8.2.4.65 DOCTYPE system identifier (single-quoted) state
 
-_$[DT_SYSTEM_DQ] = doctypeQuotedState("\"", "_systemBuffer", AFTER_DT_SYSTEM_IDENT);
-_$[DT_SYSTEM_SQ] = doctypeQuotedState("'",  "_systemBuffer", AFTER_DT_SYSTEM_IDENT);
+_$[DT_SYSTEM_DQ] = doctypeSystemQuotedState("\"");
+_$[DT_SYSTEM_SQ] = doctypeSystemQuotedState("'");
 
 // 8.2.4.66 After DOCTYPE system identifier state
 
