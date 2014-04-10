@@ -29,7 +29,7 @@ describe("html5lib-tests Tokenizer", function(){
 						}
 						succ++;
 					} catch(e){
-						console.log(test.description, e.message);
+						console.log(test.description, test.input, e.message);
 						fail++;
 					}
 				});
@@ -50,10 +50,13 @@ function getCollector(){
 		token: token,
 		onopentagname: function(n){
 			attribs = {};
-			tag = ["StartTag", n.toLowerCase().replace(/\0/g, "\ufffd"), attribs];
+			tag = ["StartTag", n.toLowerCase(), attribs];
 		},
 		onclosetag: function(n){
-			token.push(["EndTag", n.toLowerCase().replace(/\0/g, "\ufffd")]);
+			tag = ["EndTag", n.toLowerCase()];
+		},
+		onclosetagend: function(){
+			token.push(tag);
 		},
 		ontext: function(t){
 			token.push(["Character", t]);
@@ -107,7 +110,7 @@ function unescape(c){
 	return c.replace(/\\u([\dA-F]+)/g, function(_, c){ return String.fromCharCode(parseInt(c, 16)); });
 }
 
-function reduceCollection(c){
+function reduceCollection(c, esc){
 	var out = [];
 
 	c.forEach(function handle(t){
@@ -118,8 +121,7 @@ function reduceCollection(c){
 		switch(t[0]){
 			case "Comment":
 			case "Character":
-				t[1] = unescape(t[1]);
-				t[1] = t[1].replace(/\r\n?/g, "\n");
+				if(esc) t[1] = unescape(t[1]);
 				if(out.length && out[out.length - 1][0] === t[0]){
 					out[out.length - 1][1] += t[1];
 				} else out.push(t);
@@ -132,16 +134,22 @@ function reduceCollection(c){
 	return out;
 }
 
+function preprocessInput(str){
+	return unescape(str)
+		.replace(/\r\n?/g, "\n")
+		.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|([^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/g, "$1\ufffd");
+}
+
 function executeTest(test, initialState){
 	var collector = getCollector(),
-	    tokenizer = new Tokenizer({decodeEntities: true}, collector);
+	    tokenizer = new Tokenizer(collector, {decodeEntities: true});
 
 	if(initialState) tokenizer._state = initialState;
 	if(test.lastStartTag) tokenizer._sequence = test.lastStartTag;
-	test.input = unescape(test.input);
+	test.input = preprocessInput(test.input);
 
 	tokenizer.end(test.input);
-	assert.deepEqual(reduceCollection(collector.token), reduceCollection(test.output));
+	assert.deepEqual(reduceCollection(collector.token), reduceCollection(test.output, true));
 }
 
 function describe(name, func){
