@@ -214,7 +214,7 @@ _$[SCRIPT_DATA_STATE] = textState(SCRIPT_DATA_LESS_THAN_SIGN_STATE);
 // 12.2.4.7 PLAINTEXT state
 
 _$[PLAINTEXT_STATE] = function(c){
-	if (c === "\0"){
+	if(c === "\0"){
 		// parse error
 		if(this._index > this._sectionStart){
 			this._cbs.ontext(this._getSection());
@@ -300,6 +300,7 @@ _$[END_TAG_NAME_STATE] = function(c){
 		this._state = AFTER_CLOSING_TAG_NAME;
 	} else if(c === ">"){
 		this._cbs.onclosetag(this._sequence);
+		this._cbs.onclosetagend();
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else {
@@ -351,6 +352,8 @@ _$[SCRIPT_DATA_ESCAPE_START_STATE] = ifElseState("-", SCRIPT_DATA_ESCAPE_START_D
 // 12.2.4.21 Script data escape start dash state
 
 _$[SCRIPT_DATA_ESCAPE_START_DASH_STATE] = ifElseState("-", SCRIPT_DATA_ESCAPED_DASH_DASH_STATE, SCRIPT_DATA_STATE);
+
+//TODO support remaining SCRIPT_DATA states
 
 // 8.2.4.34 Before attribute name state
 
@@ -585,12 +588,13 @@ _$[COMMENT_END] = function(c){
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else if(c === "!"){
+		// parse error
 		this._state = COMMENT_END_BANG;
 	} else if(c !== "-"){
 		this._state = COMMENT;
 		this._index--;
 	}
-	// else: stay in COMMENT_END (`--->`)
+	// else: parse error, stay in COMMENT_END (`--->`)
 };
 
 // 8.2.4.51 Comment end bang state
@@ -616,6 +620,7 @@ _$[IN_CLOSING_TAG_NAME] = function(c){
 		this._state = AFTER_CLOSING_TAG_NAME;
 	} else if(c === ">"){
 		this._cbs.onclosetag(this._getSection());
+		this._cbs.onclosetagend();
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} //TODO c === "\0"
@@ -624,6 +629,7 @@ _$[IN_CLOSING_TAG_NAME] = function(c){
 _$[AFTER_CLOSING_TAG_NAME] = function(c){
 	//skip everything until ">"
 	if(c === ">"){
+		this._cbs.onclosetagend();
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	}
