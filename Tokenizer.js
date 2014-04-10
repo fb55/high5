@@ -135,6 +135,7 @@ function Tokenizer(cbs, options){
 
 	this._nameBuffer = null;
 	this._valueBuffer = null;
+	this._systemBuffer = null;
 }
 
 var _$ = Tokenizer.prototype;
@@ -684,32 +685,41 @@ _$[AFTER_CLOSING_TAG_NAME] = function(c){
 _$[BEFORE_DOCTYPE_NAME] = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
-		this._cbs.ondoctypename("");
-		this._cbs.ondtquirksend();
+		this._cbs.ondoctype(null, null, null, false);
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else {
 		this._state = DOCTYPE_NAME;
-		this._sectionStart = this._index;
+
+		if(c === "\0"){
+			this._nameBuffer = REPLACEMENT_CHARACTER;
+			this._sectionStart = this._index + 1;
+		} else {
+			this._nameBuffer = "";
+			this._sectionStart = this._index;
+		}
 	}
 };
 
 // 8.2.4.54 DOCTYPE name state
 _$[DOCTYPE_NAME] = function(c){
 	if(whitespace(c)){
-		this._cbs.ondoctypename(this._getEndingSection());
+		this._nameBuffer += this._getEndingSection();
 		this._state = AFTER_DOCTYPE_NAME;
 	} else if(c === ">"){
-		this._cbs.ondoctypename(this._getPartialSection());
-		this._cbs.ondoctypeend();
+		this._cbs.ondoctype(this._nameBuffer + this._getPartialSection(), null, null, true);
+		this._nameBuffer = null;
 		this._state = DATA;
+	} else if(c === "\0"){
+		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
 	}
 };
 
 // 8.2.4.55 After DOCTYPE name state
 _$[AFTER_DOCTYPE_NAME] = function(c){
 	if(c === ">"){
-		this._cbs.ondoctypeend();
+		this._cbs.ondoctype(this._nameBuffer, null, null, true);
+		this._nameBuffer = null;
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else if(c === "P" || c === "p"){
@@ -727,30 +737,37 @@ _$[AFTER_DOCTYPE_NAME] = function(c){
 _$[AFTER_DT_PUBLIC] = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
-		this._cbs.ondtquirksend();
+		this._cbs.ondoctype(this._nameBuffer, null, null, false);
+		this._nameBuffer = null;
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else if(c === "\""){
 		this._state = DT_PUBLIC_DQ;
+		this._valueBuffer = "";
 		this._sectionStart = this._index + 1;
 	} else if(c === "'"){
 		this._state = DT_PUBLIC_SQ;
+		this._valueBuffer = "";
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = BOGUS_EVIL_DOCTYPE;
 	}
 };
 
+//TODO split into two
 function doctypeQuotedState(quot, name, NEXT){
 	return function(c){
 		if(c === quot){
-			this._cbs[name](this._getEndingSection());
+			this[name] += this._getEndingSection();
 			this._state = NEXT;
 		} else if(c === ">"){
 			// parse error
-			this._cbs[name](this._getPartialSection());
-			this._cbs.ondtquirksend();
+			this[name] += this._getPartialSection();
+			this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, false);
+			this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
 			this._state = DATA;
+		} else if(c === "\0"){
+			this[name] += this._getPartialSection() + REPLACEMENT_CHARACTER;
 		}
 	};
 }
@@ -758,8 +775,8 @@ function doctypeQuotedState(quot, name, NEXT){
 // 8.2.4.58 DOCTYPE public identifier (double-quoted) state
 // 8.2.4.59 DOCTYPE public identifier (single-quoted) state
 
-_$[DT_PUBLIC_DQ] = doctypeQuotedState("\"", "ondoctypepublic", DT_BETWEEN_PUB_SYS);
-_$[DT_PUBLIC_SQ] = doctypeQuotedState("'",  "ondoctypepublic", DT_BETWEEN_PUB_SYS);
+_$[DT_PUBLIC_DQ] = doctypeQuotedState("\"", "_valueBuffer", DT_BETWEEN_PUB_SYS);
+_$[DT_PUBLIC_SQ] = doctypeQuotedState("'",  "_valueBuffer", DT_BETWEEN_PUB_SYS);
 
 // Ignored 8.2.4.60 After DOCTYPE public identifier state
 // 8.2.4.61 Between DOCTYPE public and system identifiers state
@@ -767,13 +784,17 @@ _$[DT_PUBLIC_SQ] = doctypeQuotedState("'",  "ondoctypepublic", DT_BETWEEN_PUB_SY
 _$[DT_BETWEEN_PUB_SYS] = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
+		this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, null, true);
+		this._nameBuffer = this._valueBuffer = null;
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else if(c === "\""){
 		this._state = DT_SYSTEM_DQ;
+		this._systemBuffer = "";
 		this._sectionStart = this._index + 1;
 	} else if(c === "'"){
 		this._state = DT_SYSTEM_SQ;
+		this._systemBuffer = "";
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = BOGUS_EVIL_DOCTYPE;
@@ -786,14 +807,17 @@ _$[DT_BETWEEN_PUB_SYS] = function(c){
 _$[AFTER_DT_SYSTEM] = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
-		this._cbs.ondtquirksend();
+		this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, false);
+		this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else if(c === "\""){
 		this._state = DT_SYSTEM_DQ;
+		this._systemBuffer = "";
 		this._sectionStart = this._index + 1;
 	} else if(c === "'"){
 		this._state = DT_SYSTEM_SQ;
+		this._systemBuffer = "";
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = BOGUS_EVIL_DOCTYPE;
@@ -803,14 +827,15 @@ _$[AFTER_DT_SYSTEM] = function(c){
 // 8.2.4.64 DOCTYPE system identifier (double-quoted) state
 // 8.2.4.65 DOCTYPE system identifier (single-quoted) state
 
-_$[DT_SYSTEM_DQ] = doctypeQuotedState("\"", "ondoctypesystem", AFTER_DT_SYSTEM_IDENT);
-_$[DT_SYSTEM_SQ] = doctypeQuotedState("'",  "ondoctypesystem", AFTER_DT_SYSTEM_IDENT);
+_$[DT_SYSTEM_DQ] = doctypeQuotedState("\"", "_systemBuffer", AFTER_DT_SYSTEM_IDENT);
+_$[DT_SYSTEM_SQ] = doctypeQuotedState("'",  "_systemBuffer", AFTER_DT_SYSTEM_IDENT);
 
 // 8.2.4.66 After DOCTYPE system identifier state
 
 _$[AFTER_DT_SYSTEM_IDENT] = function(c){
 	if(!whitespace(c)){
-		this._cbs.ondoctypeend();
+		this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, true);
+		this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
 		this._state = BOGUS_DOCTYPE;
 		this._index--;
 	}
@@ -818,7 +843,8 @@ _$[AFTER_DT_SYSTEM_IDENT] = function(c){
 
 //helper for sequences
 _$[BOGUS_EVIL_DOCTYPE] = function(){
-	this._cbs.ondtquirksend();
+	this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, false);
+	this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
 	this._state = BOGUS_DOCTYPE;
 	this._index--;
 };
@@ -1077,19 +1103,15 @@ Tokenizer.prototype._finish = function(){
 		this._state === DT_BETWEEN_PUB_SYS ||
 		this._state === AFTER_DT_SYSTEM_IDENT
 	){
-		this._cbs.ondtquirksend();
+		this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, false);
 	} else if(this._state === DT_PUBLIC_DQ || this._state === DT_PUBLIC_SQ){
-		this._cbs.ondoctypepublic(data);
-		this._cbs.ondtquirksend();
+		this._cbs.ondoctype(this._nameBuffer, this._valueBuffer + data, this._systemBuffer, false);
 	} else if(this._state === DT_SYSTEM_DQ || this._state === DT_SYSTEM_SQ){
-		this._cbs.ondoctypesystem(data);
-		this._cbs.ondtquirksend();
+		this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer + data, false);
 	} else if(this._state === BEFORE_DOCTYPE_NAME){
-		this._cbs.ondoctypename("");
-		this._cbs.ondtquirksend();
+		this._cbs.ondoctype(null, null, null, false);
 	} else if(this._state === DOCTYPE_NAME){
-		this._cbs.ondoctypename(data);
-		this._cbs.ondtquirksend();
+		this._cbs.ondoctype(this._nameBuffer + data, null, null, false);
 	} else if(this._state === SEQUENCE){
 		this._state = this._baseState;
 		this._finish();

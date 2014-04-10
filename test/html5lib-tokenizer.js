@@ -43,8 +43,7 @@ describe("html5lib-tests Tokenizer", function(){
 function getCollector(){
 	var token = [],
 	    tag = null,
-	    attribs = null,
-	    name = "";
+	    attribs = null;
 
 	function noop(){}
 
@@ -79,20 +78,10 @@ function getCollector(){
 			token.push(tag);
 			tag = attribs = null;
 		},
-		ondoctypename: function(name){
-			token.push(["DOCTYPE", name.toLowerCase().replace(/\0/g, "\ufffd") || null, null, null, true]);
-		},
-		ondoctypepublic: function(p){
-			token[token.length-1][2] = p.replace(/\0/g, "\ufffd");
-		},
-		ondoctypesystem: function(s){
-			token[token.length-1][3] = s.replace(/\0/g, "\ufffd");
-		},
-		ondtquirksend: function(){
-			token[token.length-1][4] = false;
+		ondoctype: function(name, publicIdent, systemIdent, normalMode){
+			token.push(["DOCTYPE", name && name.toLowerCase(), publicIdent, systemIdent, normalMode]);
 		},
 		oncommentend: noop,
-		ondoctypeend: noop,
 		onend: noop
 	};
 }
