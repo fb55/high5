@@ -157,23 +157,6 @@ _$[SEQUENCE] = function(c){
 	}
 };
 
-function dataState(LESS_THAN_SIGN_STATE){
-	var consumeText = textState(LESS_THAN_SIGN_STATE);
-
-	return function(c){
-		if(this._decodeEntities && c === "&"){
-			if(this._index > this._sectionStart){
-				this._cbs.ontext(this._getSection());
-			}
-			this._baseState = this._state;
-			this._state = BEFORE_ENTITY;
-			this._sectionStart = this._index;
-		} else {
-			consumeText.call(this, c);
-		}
-	};
-}
-
 function textState(LESS_THAN_SIGN_STATE){
 	return function(c){
 		if(c === "<"){
@@ -195,11 +178,48 @@ function textState(LESS_THAN_SIGN_STATE){
 
 // 8.2.4.1 Data state
 
-_$[DATA] = dataState(TAG_OPEN);
+_$[DATA] = function(c){
+	if(this._decodeEntities && c === "&"){
+		if(this._index > this._sectionStart){
+			this._cbs.ontext(this._getSection());
+		}
+		this._baseState = this._state;
+		this._state = BEFORE_ENTITY;
+		this._sectionStart = this._index;
+	} else if(c === "<"){
+		if(this._index > this._sectionStart){
+			this._cbs.ontext(this._getSection());
+		}
+		this._state = TAG_OPEN;
+		this._sectionStart = this._index;
+	}
+};
 
 // 12.2.4.3 RCDATA state
 
-_$[RCDATA_STATE] = dataState(RCDATA_LESS_THAN_SIGN_STATE);
+_$[RCDATA_STATE] = function(c){
+	if(this._decodeEntities && c === "&"){
+		if(this._index > this._sectionStart){
+			this._cbs.ontext(this._getSection());
+		}
+		this._baseState = this._state;
+		this._state = BEFORE_ENTITY;
+		this._sectionStart = this._index;
+	} else if(c === "<"){
+		if(this._index > this._sectionStart){
+			this._cbs.ontext(this._getSection());
+		}
+		this._state = RCDATA_LESS_THAN_SIGN_STATE;
+		this._sectionStart = this._index;
+	} else if(c === "\0"){
+		// parse error
+		if(this._index > this._sectionStart){
+			this._cbs.ontext(this._getSection());
+		}
+		this._cbs.ontext(REPLACEMENT_CHARACTER);
+		this._sectionStart = this._index + 1;
+	}
+};
 
 // 12.2.4.5 RAWTEXT state
 
@@ -953,7 +973,13 @@ Tokenizer.prototype._cleanup = function () {
 		this._buffer = "";
 		this._index = 0;
 	} else if(this._running){
-		if(this._state === DATA){
+		if(
+			this._state === DATA ||
+			this._state === RCDATA_STATE ||
+			this._state === RAWTEXT_STATE ||
+			this._state === PLAINTEXT_STATE ||
+			this._state === SCRIPT_DATA_STATE
+		){
 			if(this._sectionStart !== this._index){
 				this._cbs.ontext(this._buffer.substr(this._sectionStart));
 			}
