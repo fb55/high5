@@ -132,6 +132,9 @@ function Tokenizer(cbs, options){
 	this._ended = false;
 	this._xmlMode = !!(options && options.xmlMode);
 	this._decodeEntities = !!(options && options.decodeEntities);
+
+	this._nameBuffer = null;
+	this._valueBuffer = null;
 }
 
 var _$ = Tokenizer.prototype;
@@ -387,7 +390,13 @@ _$[BEFORE_ATTRIBUTE_NAME] = function(c){
 	} else if(!whitespace(c)){
 		// parse error (c === "\"" || c === "'" || c === "<" || c === "=")
 		this._state = ATTRIBUTE_NAME;
-		this._sectionStart = this._index;
+		if(c === "\0"){
+			this._nameBuffer = REPLACEMENT_CHARACTER;
+			this._sectionStart = this._index + 1;
+		} else {
+			this._nameBuffer = "";
+			this._sectionStart = this._index;
+		}
 	}
 };
 
@@ -396,9 +405,12 @@ _$[BEFORE_ATTRIBUTE_NAME] = function(c){
 
 _$[ATTRIBUTE_NAME] = function(c){
 	if(c === "=" || c === "/" || c === ">" || whitespace(c)){
-		this._cbs.onattribname(this._getEndingSection());
+		this._nameBuffer += this._getEndingSection();
+		this._valueBuffer = "";
 		this._state = AFTER_ATTRIBUTE_NAME;
 		this._index--;
+	} else if(c === "\0"){
+		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
 	}
 };
 
@@ -408,18 +420,27 @@ _$[AFTER_ATTRIBUTE_NAME] = function(c){
 	if(c === "="){
 		this._state = BEFORE_ATTRIBUTE_VALUE;
 	} else if(c === "/"){
-		this._cbs.onattribend();
+		this._cbs.onattribute(this._nameBuffer, "");
+		this._nameBuffer = null;
 		this._state = SELF_CLOSING_START_TAG;
 	} else if(c === ">"){
-		this._cbs.onattribend();
+		this._cbs.onattribute(this._nameBuffer, "");
+		this._nameBuffer = null;
 		this._cbs.onopentagend();
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else if(!whitespace(c)){
 		// parse error (c === "\"" || c === "'" || c === "<")
-		this._cbs.onattribend();
+		this._cbs.onattribute(this._nameBuffer, "");
 		this._state = ATTRIBUTE_NAME;
-		this._sectionStart = this._index;
+
+		if(c === "\0"){
+			this._nameBuffer = REPLACEMENT_CHARACTER;
+			this._sectionStart = this._index + 1;
+		} else {
+			this._nameBuffer = "";
+			this._sectionStart = this._index;
+		}
 	}
 };
 
@@ -428,19 +449,23 @@ _$[AFTER_ATTRIBUTE_NAME] = function(c){
 _$[BEFORE_ATTRIBUTE_VALUE] = function(c){
 	if(c === "\""){
 		this._state = ATTRIBUTE_VALUE_DQ;
+		this._valueBuffer = "";
 		this._sectionStart = this._index + 1;
 	} else if(c === "'"){
 		this._state = ATTRIBUTE_VALUE_SQ;
+		this._valueBuffer = "";
 		this._sectionStart = this._index + 1;
 	} else if(c === ">"){
 		// parse error
-		this._cbs.onattribend();
+		this._cbs.onattribute(this._nameBuffer, "");
+		this._nameBuffer = null;
 		this._cbs.onopentagend();
 		this._sectionStart = this._index + 1;
 		this._state = DATA;
 	} else if(!whitespace(c)){
 		// parse error (c === "<" || c === "=")
 		this._state = ATTRIBUTE_VALUE_NQ;
+		this._valueBuffer = "";
 		this._sectionStart = this._index;
 		this._index--;
 	}
@@ -449,18 +474,17 @@ _$[BEFORE_ATTRIBUTE_VALUE] = function(c){
 function attributeValueQuotedState(QUOT){
 	return function(c){
 		if(c === QUOT){
-			this._cbs.onattribdata(this._getEndingSection());
-			this._cbs.onattribend();
+			this._cbs.onattribute(this._nameBuffer, this._valueBuffer + this._getEndingSection());
+			this._nameBuffer = this._valueBuffer = null;
 			this._state = BEFORE_ATTRIBUTE_NAME;
 		} else if(this._decodeEntities && c === "&"){
-			this._cbs.onattribdata(this._getEndingSection());
+			this._valueBuffer += this._getSection();
 			this._baseState = this._state;
 			this._state = BEFORE_ENTITY;
 			this._sectionStart = this._index;
 		} else if(c === "\0"){
 			// parse error
-			this._cbs.onattribdata(this._getSection() + REPLACEMENT_CHARACTER);
-			this._sectionStart = this._index + 1;
+			this._valueBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
 		}
 	};
 }
@@ -475,23 +499,22 @@ _$[ATTRIBUTE_VALUE_SQ] = attributeValueQuotedState("'");
 
 _$[ATTRIBUTE_VALUE_NQ] = function(c){
 	if(whitespace(c)){
-		this._cbs.onattribdata(this._getEndingSection());
-		this._cbs.onattribend();
+		this._cbs.onattribute(this._nameBuffer, this._valueBuffer + this._getEndingSection());
+		this._nameBuffer = this._valueBuffer = null;
 		this._state = BEFORE_ATTRIBUTE_NAME;
 	} else if(c === ">"){
-		this._cbs.onattribdata(this._getPartialSection());
-		this._cbs.onattribend();
+		this._cbs.onattribute(this._nameBuffer, this._valueBuffer + this._getPartialSection());
+		this._nameBuffer = this._valueBuffer = null;
 		this._cbs.onopentagend();
 		this._state = DATA;
 	} else if(this._decodeEntities && c === "&"){
-		this._cbs.onattribdata(this._getEndingSection());
+		this._valueBuffer += this._getSection();
 		this._baseState = this._state;
 		this._state = BEFORE_ENTITY;
 		this._sectionStart = this._index;
 	} else if(c === "\0"){
 		// parse error
-		this._cbs.onattribdata(this._getSection() + REPLACEMENT_CHARACTER);
-		this._sectionStart = this._index + 1;
+		this._valueBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
 	}
 	// parse error (c === "\"" || c === "'" || c === "<" || c === "=" || c === "`")
 };
@@ -1152,7 +1175,7 @@ Tokenizer.prototype._getPartialSection = function(){
 
 Tokenizer.prototype._emitPartial = function(value){
 	if(isAttributeState(this._baseState)){
-		this._cbs.onattribdata(value); //TODO implement the new event
+		this._valueBuffer += value;
 	} else {
 		this._cbs.ontext(value);
 	}

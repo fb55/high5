@@ -66,19 +66,9 @@ function getCollector(){
 		oncomment: function(t){
 			token.push(["Comment", t]);
 		},
-		onboguscomment: function(t){
-			token.push(["Comment", t]);
-		},
-		onattribname: function(n){
-			name = n.toLowerCase().replace(/\0/g, "\ufffd");
-			if(name in attribs) name = "";
-			else attribs[name] = "";
-		},
-		onattribdata: function(v){
-			if(name) attribs[name] += v;
-		},
-		onattribend: function(){
-			name = "";
+		onattribute: function(n, v){
+			var name = n.toLowerCase();
+			if(!(name in attribs)) attribs[name] = v;
 		},
 		onopentagend: function(){
 			token.push(tag);
