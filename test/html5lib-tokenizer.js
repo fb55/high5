@@ -51,10 +51,10 @@ function getCollector(){
 		token: token,
 		onopentagname: function(n){
 			attribs = {};
-			tag = ["StartTag", n.toLowerCase(), attribs];
+			tag = ["StartTag", n, attribs];
 		},
 		onclosetag: function(n){
-			token.push(["EndTag", n.toLowerCase()]);
+			token.push(["EndTag", n]);
 		},
 		ontext: function(t){
 			token.push(["Character", t]);
@@ -63,8 +63,7 @@ function getCollector(){
 			token.push(["Comment", t]);
 		},
 		onattribute: function(n, v){
-			var name = n.toLowerCase();
-			if(!(name in attribs)) attribs[name] = v;
+			if(!(n in attribs)) attribs[n] = v;
 		},
 		onopentagend: function(){
 			token.push(tag);
@@ -76,7 +75,7 @@ function getCollector(){
 			tag = attribs = null;
 		},
 		ondoctype: function(name, publicIdent, systemIdent, normalMode){
-			token.push(["DOCTYPE", name && name.toLowerCase(), publicIdent, systemIdent, normalMode]);
+			token.push(["DOCTYPE", name, publicIdent, systemIdent, normalMode]);
 		},
 		oncommentend: noop,
 		onend: noop

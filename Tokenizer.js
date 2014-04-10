@@ -93,8 +93,20 @@ function whitespace(c){
 	return c === " " || c === "\n" || c === "\t" || c === "\f" || c === "\r";
 }
 
+function lowerCaseChar(c){
+	return String.fromCharCode(c.charCodeAt(0) + 32);
+}
+
+function isUpperCaseChar(c){
+	return c >= "A" && c <= "Z";
+}
+
+function isLowerCaseChar(c){
+	return c >= "a" && c <= "z";
+}
+
 function isLetter(c){
-	return (c >= "a" && c <= "z") || (c >= "A" && c <= "Z");
+	return isLowerCaseChar(c) || isUpperCaseChar(c);
 }
 
 function isAttributeState(state){
@@ -133,6 +145,13 @@ function Tokenizer(cbs, options){
 	this._xmlMode = !!(options && options.xmlMode);
 	this._decodeEntities = !!(options && options.decodeEntities);
 
+	this._lowerCaseTagNames = options && "lowerCaseTags" in options ?
+									!!options.lowerCaseTags :
+									!this._xmlMode;
+	this._lowerCaseAttributeNames = options && "lowerCaseAttributeNames" in options ?
+									!!options.lowerCaseAttributeNames :
+									!this._xmlMode;
+
 	this._nameBuffer = null;
 	this._valueBuffer = null;
 	this._systemBuffer = null;
@@ -150,7 +169,7 @@ Tokenizer.prototype._consumeSequence = function(seq, SUCCESS, FAILURE){
 
 _$[SEQUENCE] = function(c){
 	var comp = this._sequence.charAt(this._sequenceIndex);
-	if(c === comp || c.toLowerCase() === comp){
+	if(c === comp || lowerCaseChar(c) === comp){
 		this._sequenceIndex += 1;
 		if(this._sequenceIndex === this._sequence.length){
 			this._state = this._nextState;
@@ -257,6 +276,10 @@ _$[TAG_OPEN] = function(c){
 		this._sectionStart = this._index + 1;
 	} else if(c === "/"){
 		this._state = END_TAG_OPEN;
+	} else if(this._lowerCaseTagNames && isUpperCaseChar(c)){
+		this._state = TAG_NAME;
+		this._nameBuffer = lowerCaseChar(c);
+		this._sectionStart = this._index + 1;
 	} else if(isLetter(c)){
 		this._state = TAG_NAME;
 		this._nameBuffer = "";
@@ -274,7 +297,11 @@ _$[TAG_OPEN] = function(c){
 // 8.2.4.9 End tag open state
 
 _$[END_TAG_OPEN] = function(c){
-	if(isLetter(c)){
+	if(this._lowerCaseTagNames && isUpperCaseChar(c)){
+		this._state = IN_CLOSING_TAG_NAME;
+		this._nameBuffer = lowerCaseChar(c);
+		this._sectionStart = this._index + 1;
+	} else if(isLetter(c)){
 		this._state = IN_CLOSING_TAG_NAME;
 		this._nameBuffer = "";
 		this._sectionStart = this._index;
@@ -306,6 +333,8 @@ _$[TAG_NAME] = function(c){
 		this._state = DATA;
 	} else if(c === "\0"){
 		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
+	} else if(this._lowerCaseTagNames && isUpperCaseChar(c)){
+		this._nameBuffer += this._getPartialSection() + lowerCaseChar(c);
 	}
 };
 
@@ -398,6 +427,9 @@ _$[BEFORE_ATTRIBUTE_NAME] = function(c){
 		if(c === "\0"){
 			this._nameBuffer = REPLACEMENT_CHARACTER;
 			this._sectionStart = this._index + 1;
+		} else if(this._lowerCaseAttributeNames && isUpperCaseChar(c)){
+			this._nameBuffer = lowerCaseChar(c);
+			this._sectionStart = this._index + 1;
 		} else {
 			this._nameBuffer = "";
 			this._sectionStart = this._index;
@@ -411,11 +443,12 @@ _$[BEFORE_ATTRIBUTE_NAME] = function(c){
 _$[ATTRIBUTE_NAME] = function(c){
 	if(c === "=" || c === "/" || c === ">" || whitespace(c)){
 		this._nameBuffer += this._getEndingSection();
-		this._valueBuffer = "";
 		this._state = AFTER_ATTRIBUTE_NAME;
 		this._index--;
 	} else if(c === "\0"){
 		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
+	} else if(this._lowerCaseAttributeNames && isUpperCaseChar(c)){
+		this._nameBuffer += this._getPartialSection() + lowerCaseChar(c);
 	}
 };
 
@@ -441,6 +474,9 @@ _$[AFTER_ATTRIBUTE_NAME] = function(c){
 
 		if(c === "\0"){
 			this._nameBuffer = REPLACEMENT_CHARACTER;
+			this._sectionStart = this._index + 1;
+		} else if(this._lowerCaseAttributeNames && isUpperCaseChar(c)){
+			this._nameBuffer = lowerCaseChar(c);
 			this._sectionStart = this._index + 1;
 		} else {
 			this._nameBuffer = "";
@@ -671,6 +707,8 @@ _$[IN_CLOSING_TAG_NAME] = function(c){
 		this._state = DATA;
 	} else if(c === "\0"){
 		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
+	} else if(this._lowerCaseTagNames && isUpperCaseChar(c)){
+		this._nameBuffer += this._getPartialSection() + lowerCaseChar(c);
 	}
 };
 
@@ -698,6 +736,9 @@ _$[BEFORE_DOCTYPE_NAME] = function(c){
 		if(c === "\0"){
 			this._nameBuffer = REPLACEMENT_CHARACTER;
 			this._sectionStart = this._index + 1;
+		} else if(this._lowerCaseTagNames && isUpperCaseChar(c)){
+			this._nameBuffer = lowerCaseChar(c);
+			this._sectionStart = this._index + 1;
 		} else {
 			this._nameBuffer = "";
 			this._sectionStart = this._index;
@@ -716,6 +757,8 @@ _$[DOCTYPE_NAME] = function(c){
 		this._state = DATA;
 	} else if(c === "\0"){
 		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
+	} else if(this._lowerCaseTagNames && isUpperCaseChar(c)){
+		this._nameBuffer += this._getPartialSection() + lowerCaseChar(c);
 	}
 };
 
