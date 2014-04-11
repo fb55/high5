@@ -297,6 +297,7 @@ _$[TAG_OPEN] = function(c){
 	} else {
 		// parse error
 		this._state = DATA;
+		this._index--;
 	}
 };
 
