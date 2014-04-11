@@ -97,6 +97,10 @@ function lowerCaseChar(c){
 	return String.fromCharCode(c.charCodeAt(0) + 32);
 }
 
+function isNumber(c){
+	return c >= "0" && c <= "9";
+}
+
 function isUpperCaseChar(c){
 	return c >= "A" && c <= "Z";
 }
@@ -978,8 +982,9 @@ _$[IN_NAMED_ENTITY] = function(c){
 				this._sectionStart++;
 			}
 		}
+
 		this._state = this._baseState;
-	} else if((c < "a" || c > "z") && (c < "A" || c > "Z") && (c < "0" || c > "9")){
+	} else if(!(isLetter(c) || isNumber(c))){
 		if(this._xmlMode);
 		else if(this._sectionStart + 1 === this._index);
 		else if(isAttributeState(this._baseState)){
@@ -997,45 +1002,53 @@ _$[IN_NAMED_ENTITY] = function(c){
 
 _$[IN_NUMERIC_ENTITY] = function(c){
 	if(c === ";"){
+		this._state = this._baseState;
+
 		if(this._sectionStart + 2 !== this._index){
 			this._decodeNumericEntity(2, 10);
-			this._sectionStart++;
+			this._sectionStart = this._index + 1;
 		}
-	} else if(c < "0" || c > "9"){
-		if(this._xmlMode || this._sectionStart + 3 === this._index){
-			this._state = this._baseState;
-		} else {
+
+	} else if(!isNumber(c)){
+		this._state = this._baseState;
+
+		if(!this._xmlMode && this._sectionStart + 2 !== this._index){
 			this._decodeNumericEntity(2, 10);
+			this._sectionStart = this._index;
 		}
+
 		this._index--;
 	}
 };
 
 _$[IN_HEX_ENTITY] = function(c){
 	if(c === ";"){
-		this._decodeNumericEntity(3, 16);
-		this._sectionStart++;
-	} else if((c < "a" || c > "f") && (c < "A" || c > "F") && (c < "0" || c > "9")){
-		if(this._xmlMode || this._sectionStart + 3 === this._index){
-			this._state = this._baseState;
-		} else {
+		this._state = this._baseState;
+
+		if(this._sectionStart + 3 !== this._index){
 			this._decodeNumericEntity(3, 16);
+			this._sectionStart = this._index + 1;
 		}
+	} else if(!isNumber(c) && (c < "a" || c > "f") && (c < "A" || c > "F")){
+		this._state = this._baseState;
+
+		if(!this._xmlMode && this._sectionStart + 3 !== this._index){
+			this._decodeNumericEntity(3, 16);
+			this._sectionStart = this._index;
+		}
+
 		this._index--;
 	}
 };
 
 //for entities terminated with a semicolon
 Tokenizer.prototype._parseNamedEntityStrict = function(){
-	//offset = 1
-	if(this._sectionStart + 1 < this._index){
-		var entity = this._buffer.substring(this._sectionStart + 1, this._index),
-			map = this._xmlMode ? xmlMap : entityMap;
+	var entity = this._buffer.substring(this._sectionStart + 1, this._index),
+		map = this._xmlMode ? xmlMap : entityMap;
 
-		if(map.hasOwnProperty(entity)){
-			this._emitPartial(map[entity]);
-			this._sectionStart = this._index;
-		}
+	if(map.hasOwnProperty(entity)){
+		this._emitPartial(map[entity]);
+		this._sectionStart = this._index;
 	}
 };
 
@@ -1061,24 +1074,10 @@ Tokenizer.prototype._parseLegacyEntity = function(){
 };
 
 Tokenizer.prototype._decodeNumericEntity = function(offset, base){
-	var sectionStart = this._sectionStart + offset;
+	var entity = this._buffer.substring(this._sectionStart + offset, this._index),
+	    parsed = parseInt(entity, base);
 
-	this._state = this._baseState;
-
-	if(sectionStart !== this._index){
-		//parse entity
-		var entity = this._buffer.substring(sectionStart, this._index);
-		var parsed = parseInt(entity, base);
-
-		this._emitPartial(decodeCodePoint(parsed));
-		this._sectionStart = this._index;
-	} else {
-		if(base === 10){
-			this._sectionStart -= 2;
-		} else {
-			this._sectionStart -= 3;
-		}
-	}
+	this._emitPartial(decodeCodePoint(parsed));
 };
 
 Tokenizer.prototype._cleanup = function () {
@@ -1220,26 +1219,35 @@ Tokenizer.prototype._finish = function(){
 		this._cbs.oncomment(data.slice(0, -3));
 	} else if(data.length === 0){
 		//we're done
+	} else if(
+		(this._xmlMode || isAttributeState(this._baseState)) &&
+		(this._state === IN_NAMED_ENTITY || this._state === IN_NUMERIC_ENTITY || this._state === IN_HEX_ENTITY)
+	){
+		this._state = this._baseState;
+		this._finish();
+	} else if(this._state === IN_NUMERIC_ENTITY){
+		if(data.length > 2){
+			this._decodeNumericEntity(2, 10);
+		} else {
+			this._cbs.ontext(data);
+		}
+	} else if(this._state === IN_HEX_ENTITY){
+		if(data.length > 3){
+			this._decodeNumericEntity(3, 16);
+		} else {
+			this._cbs.ontext(data);
+		}
+	} else if(this._state === IN_NAMED_ENTITY){
+		if(data.length > 1){
+			this._parseLegacyEntity();
+		}
+
+		if(this._sectionStart < this._index){
+			this._state = this._baseState;
+			this._finish();
+		}
 	} else if(this._state === IN_CDATA || this._state === AFTER_CDATA_1 || this._state === AFTER_CDATA_2){
 		this._cbs.oncdata(data);
-	} else if(this._state === IN_NAMED_ENTITY && !this._xmlMode){
-		this._parseLegacyEntity();
-		if(this._sectionStart < this._index){
-			this._state = this._baseState;
-			this._finish();
-		}
-	} else if(this._state === IN_NUMERIC_ENTITY && !this._xmlMode){
-		this._decodeNumericEntity(2, 10);
-		if(this._sectionStart < this._index){
-			this._state = this._baseState;
-			this._finish();
-		}
-	} else if(this._state === IN_HEX_ENTITY && !this._xmlMode){
-		this._decodeNumericEntity(3, 16);
-		if(this._sectionStart < this._index){
-			this._state = this._baseState;
-			this._finish();
-		}
 	} else if(
 		this._state !== TAG_NAME &&
 		this._state !== AFTER_CLOSING_TAG_NAME &&
