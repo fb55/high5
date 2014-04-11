@@ -125,8 +125,21 @@ function executeTest(test, initialState, debug){
 	var collector = getCollector(),
 	    tokenizer = new Tokenizer(collector, {decodeEntities: true, debug: debug});
 
-	if(initialState) tokenizer._state = initialState;
-	if(test.lastStartTag) tokenizer._sequence = test.lastStartTag;
+	if(initialState){
+		switch(initialState){
+			case "RCDATA":
+				tokenizer.consumeRCData(test.lastStartTag);
+				break;
+			case "RAWTEXT":
+				tokenizer.consumeRawtext(test.lastStartTag);
+				break;
+			case "PLAINTEXT":
+				tokenizer.consumePlaintext();
+				break;
+			default:
+				throw new Error("not implemented");
+		}
+	}
 
 	tokenizer.end(preprocessInput(test.input));
 	assert.deepEqual(reduceCollection(collector.token), reduceCollection(test.output, true));

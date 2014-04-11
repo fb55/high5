@@ -1147,6 +1147,25 @@ Tokenizer.prototype.resume = function(){
 	}
 };
 
+Tokenizer.prototype.consumePlaintext = function(){
+	this._state = PLAINTEXT_STATE;
+};
+
+Tokenizer.prototype.consumeScriptData = function(){
+	this._state = SCRIPT_DATA_STATE;
+	this._sequence = "script";
+};
+
+Tokenizer.prototype.consumeRCData = function(endTag){
+	this._state = RCDATA_STATE;
+	this._sequence = endTag;
+};
+
+Tokenizer.prototype.consumeRawtext = function(endTag){
+	this._state = RAWTEXT_STATE;
+	this._sequence = endTag;
+};
+
 Tokenizer.prototype.end = function(chunk){
 	if(this._ended) this._cbs.onerror(Error(".end() after done!"));
 	if(chunk) this.write(chunk);
