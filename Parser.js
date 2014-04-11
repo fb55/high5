@@ -128,8 +128,12 @@ Parser.prototype.onopentagend = function(){
 		this._cbs.onclosetag(this._tagname);
 	}
 
-	if(!this._options.xmlMode && this._tagname === "script"){
-		this._tokenizer.consumeScriptData();
+	if(!this._options.xmlMode){
+		if(this._tagname === "script"){
+			this._tokenizer.consumeScriptData();
+		} else if(this._tagname === "style"){
+			this._tokenizer.consumeRCData("style");
+		}
 	}
 
 	this._tagname = "";
@@ -200,6 +204,9 @@ Parser.prototype.oncdata = function(value){
 		if(this._cbs.oncdatastart) this._cbs.oncdatastart();
 		if(this._cbs.ontext) this._cbs.ontext(value);
 		if(this._cbs.oncdataend) this._cbs.oncdataend();
+	} else {
+		if(this._cbs.oncomment) this.oncomment("[CDATA[" + value + "]]");
+		if(this._cbs.oncommentend) this._cbs.oncommentend();
 	}
 };
 
