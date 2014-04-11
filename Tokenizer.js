@@ -185,10 +185,10 @@ _$[SEQUENCE] = function(c){
 function textState(LESS_THAN_SIGN_STATE){
 	return function(c){
 		if(c === "<"){
+			this._state = LESS_THAN_SIGN_STATE;
 			if(this._index > this._sectionStart){
 				this._cbs.ontext(this._getSection());
 			}
-			this._state = LESS_THAN_SIGN_STATE;
 			this._sectionStart = this._index;
 		} else if(c === "\0"){
 			// parse error
@@ -205,17 +205,17 @@ function textState(LESS_THAN_SIGN_STATE){
 
 _$[DATA] = function(c){
 	if(this._decodeEntities && c === "&"){
-		if(this._index > this._sectionStart){
-			this._cbs.ontext(this._getSection());
-		}
 		this._baseState = this._state;
 		this._state = BEFORE_ENTITY;
-		this._sectionStart = this._index;
-	} else if(c === "<"){
 		if(this._index > this._sectionStart){
 			this._cbs.ontext(this._getSection());
 		}
+		this._sectionStart = this._index;
+	} else if(c === "<"){
 		this._state = TAG_OPEN;
+		if(this._index > this._sectionStart){
+			this._cbs.ontext(this._getSection());
+		}
 		this._sectionStart = this._index;
 	}
 };
@@ -224,17 +224,17 @@ _$[DATA] = function(c){
 
 _$[RCDATA_STATE] = function(c){
 	if(this._decodeEntities && c === "&"){
-		if(this._index > this._sectionStart){
-			this._cbs.ontext(this._getSection());
-		}
 		this._baseState = this._state;
 		this._state = BEFORE_ENTITY;
-		this._sectionStart = this._index;
-	} else if(c === "<"){
 		if(this._index > this._sectionStart){
 			this._cbs.ontext(this._getSection());
 		}
+		this._sectionStart = this._index;
+	} else if(c === "<"){
 		this._state = RCDATA_LESS_THAN_SIGN_STATE;
+		if(this._index > this._sectionStart){
+			this._cbs.ontext(this._getSection());
+		}
 		this._sectionStart = this._index;
 	} else if(c === "\0"){
 		// parse error
@@ -309,8 +309,8 @@ _$[END_TAG_OPEN] = function(c){
 		this._sectionStart = this._index;
 	} else if(c === ">"){
 		// parse error
-		this._sectionStart = this._index + 1;
 		this._state = DATA;
+		this._sectionStart = this._index + 1;
 	} else {
 		// parse error
 		this._state = BOGUS_COMMENT;
@@ -323,16 +323,15 @@ _$[END_TAG_OPEN] = function(c){
 
 _$[TAG_NAME] = function(c){
 	if(whitespace(c)){
-		this._cbs.onopentagname(this._nameBuffer + this._getEndingSection());
 		this._state = BEFORE_ATTRIBUTE_NAME;
-	} else if(c === "/"){
 		this._cbs.onopentagname(this._nameBuffer + this._getEndingSection());
+	} else if(c === "/"){
 		this._state = SELF_CLOSING_START_TAG;
+		this._cbs.onopentagname(this._nameBuffer + this._getEndingSection());
 	} else if(c === ">"){
-		this._cbs.onopentagname(this._nameBuffer + this._getSection());
-		this._cbs.onopentagend();
-		this._sectionStart = this._index + 1;
 		this._state = DATA;
+		this._cbs.onopentagname(this._nameBuffer + this._getPartialSection());
+		this._cbs.onopentagend();
 	} else if(c === "\0"){
 		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
 	} else if(this._lowerCaseTagNames && isUpperCaseChar(c)){
@@ -356,12 +355,12 @@ function lessThanSignState(BASE_STATE, NEXT_STATE){
 
 _$[END_TAG_NAME_STATE] = function(c){
 	if(whitespace(c) || c === "/"){
-		this._nameBuffer = this._sequence;
 		this._state = AFTER_CLOSING_TAG_NAME;
+		this._nameBuffer = this._sequence;
 	} else if(c === ">"){
+		this._state = DATA;
 		this._cbs.onclosetag(this._sequence);
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else {
 		this._state = this._baseState;
 		this._index--;
@@ -418,9 +417,9 @@ _$[SCRIPT_DATA_ESCAPE_START_DASH_STATE] = ifElseState("-", SCRIPT_DATA_ESCAPED_D
 
 _$[BEFORE_ATTRIBUTE_NAME] = function(c){
 	if(c === ">"){
+		this._state = DATA;
 		this._cbs.onopentagend();
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else if(c === "/"){
 		this._state = SELF_CLOSING_START_TAG;
 	} else if(!whitespace(c)){
@@ -444,8 +443,8 @@ _$[BEFORE_ATTRIBUTE_NAME] = function(c){
 
 _$[ATTRIBUTE_NAME] = function(c){
 	if(c === "=" || c === "/" || c === ">" || whitespace(c)){
-		this._nameBuffer += this._getEndingSection();
 		this._state = AFTER_ATTRIBUTE_NAME;
+		this._nameBuffer += this._getEndingSection();
 		this._index--;
 	} else if(c === "\0"){
 		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
@@ -460,19 +459,19 @@ _$[AFTER_ATTRIBUTE_NAME] = function(c){
 	if(c === "="){
 		this._state = BEFORE_ATTRIBUTE_VALUE;
 	} else if(c === "/"){
+		this._state = SELF_CLOSING_START_TAG;
 		this._cbs.onattribute(this._nameBuffer, "");
 		this._nameBuffer = null;
-		this._state = SELF_CLOSING_START_TAG;
 	} else if(c === ">"){
+		this._state = DATA;
 		this._cbs.onattribute(this._nameBuffer, "");
 		this._nameBuffer = null;
 		this._cbs.onopentagend();
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else if(!whitespace(c)){
 		// parse error (c === "\"" || c === "'" || c === "<")
-		this._cbs.onattribute(this._nameBuffer, "");
 		this._state = ATTRIBUTE_NAME;
+		this._cbs.onattribute(this._nameBuffer, "");
 
 		if(c === "\0"){
 			this._nameBuffer = REPLACEMENT_CHARACTER;
@@ -500,11 +499,11 @@ _$[BEFORE_ATTRIBUTE_VALUE] = function(c){
 		this._sectionStart = this._index + 1;
 	} else if(c === ">"){
 		// parse error
+		this._state = DATA;
 		this._cbs.onattribute(this._nameBuffer, "");
 		this._nameBuffer = null;
 		this._cbs.onopentagend();
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else if(!whitespace(c)){
 		// parse error (c === "<" || c === "=")
 		this._state = ATTRIBUTE_VALUE_NQ;
@@ -517,9 +516,9 @@ _$[BEFORE_ATTRIBUTE_VALUE] = function(c){
 function attributeValueQuotedState(QUOT){
 	return function(c){
 		if(c === QUOT){
+			this._state = BEFORE_ATTRIBUTE_NAME;
 			this._cbs.onattribute(this._nameBuffer, this._valueBuffer + this._getEndingSection());
 			this._nameBuffer = this._valueBuffer = null;
-			this._state = BEFORE_ATTRIBUTE_NAME;
 		} else if(this._decodeEntities && c === "&"){
 			this._valueBuffer += this._getSection();
 			this._baseState = this._state;
@@ -542,14 +541,14 @@ _$[ATTRIBUTE_VALUE_SQ] = attributeValueQuotedState("'");
 
 _$[ATTRIBUTE_VALUE_NQ] = function(c){
 	if(whitespace(c)){
+		this._state = BEFORE_ATTRIBUTE_NAME;
 		this._cbs.onattribute(this._nameBuffer, this._valueBuffer + this._getEndingSection());
 		this._nameBuffer = this._valueBuffer = null;
-		this._state = BEFORE_ATTRIBUTE_NAME;
 	} else if(c === ">"){
+		this._state = DATA;
 		this._cbs.onattribute(this._nameBuffer, this._valueBuffer + this._getPartialSection());
 		this._nameBuffer = this._valueBuffer = null;
 		this._cbs.onopentagend();
-		this._state = DATA;
 	} else if(this._decodeEntities && c === "&"){
 		this._valueBuffer += this._getSection();
 		this._baseState = this._state;
@@ -568,9 +567,9 @@ _$[ATTRIBUTE_VALUE_NQ] = function(c){
 
 _$[SELF_CLOSING_START_TAG] = function(c){
 	if(c === ">"){
+		this._state = DATA;
 		this._cbs.onselfclosingtag();
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else {
 		this._state = BEFORE_ATTRIBUTE_NAME;
 		this._index--;
@@ -581,9 +580,9 @@ _$[SELF_CLOSING_START_TAG] = function(c){
 
 _$[BOGUS_COMMENT] = function(c){
 	if(c === ">"){
+		this._state = DATA;
 		this._cbs.oncomment(this._getPartialSection());
 		this._cbs.oncommentend();
-		this._state = DATA;
 	} else if(c === "\0"){
 		this._cbs.oncomment(this._getPartialSection() + REPLACEMENT_CHARACTER);
 		this._sectionStart = this._index + 1;
@@ -623,9 +622,9 @@ _$[COMMENT_START] = function(c){
 		this._state = COMMENT_START_DASH;
 	} else if(c === ">"){
 		// parse error
+		this._state = DATA;
 		this._cbs.oncomment("");
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else {
 		this._state = COMMENT;
 		this._index--;
@@ -639,9 +638,9 @@ _$[COMMENT_START_DASH] = function(c){
 		this._state = COMMENT_END;
 	} else if(c === ">"){
 		// parse error
+		this._state = DATA;
 		this._cbs.oncomment("");
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else {
 		this._state = COMMENT;
 		this._index--;
@@ -669,10 +668,10 @@ _$[COMMENT_END_DASH] = ifElseState("-", COMMENT_END, COMMENT);
 _$[COMMENT_END] = function(c){
 	if(c === ">"){
 		//remove 2 trailing chars
+		this._state = DATA;
 		this._cbs.oncomment(this._buffer.substring(this._sectionStart, this._index - 2));
 		this._cbs.oncommentend();
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else if(c === "!"){
 		// parse error
 		this._state = COMMENT_END_BANG;
@@ -688,10 +687,10 @@ _$[COMMENT_END] = function(c){
 _$[COMMENT_END_BANG] = function(c){
 	if(c === ">"){
 		//remove trailing --!
+		this._state = DATA;
 		this._cbs.oncomment(this._buffer.substring(this._sectionStart, this._index - 3));
 		this._cbs.oncommentend();
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else if(c === "-"){
 		this._state = COMMENT_END_DASH;
 	} else {
@@ -702,11 +701,11 @@ _$[COMMENT_END_BANG] = function(c){
 
 _$[IN_CLOSING_TAG_NAME] = function(c){
 	if(whitespace(c) || c === "/"){
-		this._nameBuffer += this._getEndingSection();
 		this._state = AFTER_CLOSING_TAG_NAME;
+		this._nameBuffer += this._getEndingSection();
 	} else if(c === ">"){
-		this._cbs.onclosetag(this._nameBuffer + this._getPartialSection());
 		this._state = DATA;
+		this._cbs.onclosetag(this._nameBuffer + this._getPartialSection());
 	} else if(c === "\0"){
 		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
 	} else if(this._lowerCaseTagNames && isUpperCaseChar(c)){
@@ -717,9 +716,9 @@ _$[IN_CLOSING_TAG_NAME] = function(c){
 _$[AFTER_CLOSING_TAG_NAME] = function(c){
 	//skip everything until ">"
 	if(c === ">"){
+		this._state = DATA;
 		this._cbs.onclosetag(this._nameBuffer);
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	}
 };
 
@@ -729,9 +728,9 @@ _$[AFTER_CLOSING_TAG_NAME] = function(c){
 _$[BEFORE_DOCTYPE_NAME] = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
+		this._state = DATA;
 		this._cbs.ondoctype(null, null, null, false);
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else {
 		this._state = DOCTYPE_NAME;
 
@@ -754,9 +753,9 @@ _$[DOCTYPE_NAME] = function(c){
 		this._nameBuffer += this._getEndingSection();
 		this._state = AFTER_DOCTYPE_NAME;
 	} else if(c === ">"){
+		this._state = DATA;
 		this._cbs.ondoctype(this._nameBuffer + this._getPartialSection(), null, null, true);
 		this._nameBuffer = null;
-		this._state = DATA;
 	} else if(c === "\0"){
 		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
 	} else if(this._lowerCaseTagNames && isUpperCaseChar(c)){
@@ -767,10 +766,10 @@ _$[DOCTYPE_NAME] = function(c){
 // 8.2.4.55 After DOCTYPE name state
 _$[AFTER_DOCTYPE_NAME] = function(c){
 	if(c === ">"){
+		this._state = DATA;
 		this._cbs.ondoctype(this._nameBuffer, null, null, true);
 		this._nameBuffer = null;
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else if(c === "P" || c === "p"){
 		this._consumeSequence("ublic", AFTER_DT_PUBLIC, BOGUS_EVIL_DOCTYPE);
 	} else if(c === "S" || c === "s"){
@@ -786,10 +785,10 @@ _$[AFTER_DOCTYPE_NAME] = function(c){
 _$[AFTER_DT_PUBLIC] = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
+		this._state = DATA;
 		this._cbs.ondoctype(this._nameBuffer, null, null, false);
 		this._nameBuffer = null;
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else if(c === "\""){
 		this._state = DT_PUBLIC_DQ;
 		this._valueBuffer = "";
@@ -806,13 +805,13 @@ _$[AFTER_DT_PUBLIC] = function(c){
 function doctypePublicQuotedState(quot){
 	return function(c){
 		if(c === quot){
-			this._valueBuffer += this._getEndingSection();
 			this._state = DT_BETWEEN_PUB_SYS;
+			this._valueBuffer += this._getEndingSection();
 		} else if(c === ">"){
 			// parse error
+			this._state = DATA;
 			this._cbs.ondoctype(this._nameBuffer, this._valueBuffer + this._getPartialSection(), null, false);
 			this._nameBuffer = this._valueBuffer = null;
-			this._state = DATA;
 		} else if(c === "\0"){
 			this._valueBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
 		}
@@ -831,10 +830,10 @@ _$[DT_PUBLIC_SQ] = doctypePublicQuotedState("'");
 _$[DT_BETWEEN_PUB_SYS] = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
+		this._state = DATA;
 		this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, null, true);
 		this._nameBuffer = this._valueBuffer = null;
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else if(c === "\""){
 		this._state = DT_SYSTEM_DQ;
 		this._systemBuffer = "";
@@ -854,10 +853,10 @@ _$[DT_BETWEEN_PUB_SYS] = function(c){
 _$[AFTER_DT_SYSTEM] = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
+		this._state = DATA;
 		this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, false);
 		this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else if(c === "\""){
 		this._state = DT_SYSTEM_DQ;
 		this._systemBuffer = "";
@@ -874,13 +873,13 @@ _$[AFTER_DT_SYSTEM] = function(c){
 function doctypeSystemQuotedState(quot){
 	return function(c){
 		if(c === quot){
-			this._systemBuffer += this._getEndingSection();
 			this._state = AFTER_DT_SYSTEM_IDENT;
+			this._systemBuffer += this._getEndingSection();
 		} else if(c === ">"){
 			// parse error
+			this._state = DATA;
 			this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer + this._getPartialSection(), false);
 			this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
-			this._state = DATA;
 		} else if(c === "\0"){
 			this._systemBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
 		}
@@ -897,18 +896,18 @@ _$[DT_SYSTEM_SQ] = doctypeSystemQuotedState("'");
 
 _$[AFTER_DT_SYSTEM_IDENT] = function(c){
 	if(!whitespace(c)){
+		this._state = BOGUS_DOCTYPE;
 		this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, true);
 		this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
-		this._state = BOGUS_DOCTYPE;
 		this._index--;
 	}
 };
 
 //helper for sequences
 _$[BOGUS_EVIL_DOCTYPE] = function(){
+	this._state = BOGUS_DOCTYPE;
 	this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, false);
 	this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
-	this._state = BOGUS_DOCTYPE;
 	this._index--;
 };
 
@@ -916,10 +915,12 @@ _$[BOGUS_EVIL_DOCTYPE] = function(){
 
 _$[BOGUS_DOCTYPE] = function(c){
 	if(c === ">"){
-		this._sectionStart = this._index + 1;
 		this._state = DATA;
+		this._sectionStart = this._index + 1;
 	}
 };
+
+// 8.2.4.68 CDATA section state
 
 _$[BEFORE_CDATA] = function(c){
 	if(c === "["){
@@ -937,9 +938,9 @@ _$[AFTER_CDATA_1] = ifElseState("]", AFTER_CDATA_2, IN_CDATA);
 _$[AFTER_CDATA_2] = function(c){
 	if(c === ">"){
 		//remove 2 trailing chars
+		this._state = DATA;
 		this._cbs.oncdata(this._buffer.substring(this._sectionStart, this._index - 2));
 		this._sectionStart = this._index + 1;
-		this._state = DATA;
 	} else if (c !== "]") {
 		this._state = IN_CDATA;
 	}
@@ -1062,6 +1063,8 @@ Tokenizer.prototype._parseLegacyEntity = function(){
 Tokenizer.prototype._decodeNumericEntity = function(offset, base){
 	var sectionStart = this._sectionStart + offset;
 
+	this._state = this._baseState;
+
 	if(sectionStart !== this._index){
 		//parse entity
 		var entity = this._buffer.substring(sectionStart, this._index);
@@ -1076,8 +1079,6 @@ Tokenizer.prototype._decodeNumericEntity = function(offset, base){
 			this._sectionStart -= 3;
 		}
 	}
-
-	this._state = this._baseState;
 };
 
 Tokenizer.prototype._cleanup = function () {
