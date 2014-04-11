@@ -20,41 +20,55 @@ function readDir(){
 
 function runTest(file, i){
 	console.log(i + 1, file.name);
-	var token = [];
 
-	var cbs = {};
+	var cbs = {},
+	    token = [],
+	    lastToken = null;
 
-	["opentag", "closetag", "doctype"].forEach(function(name){
+	function addToken(t){
+		token.push(t);
+		lastToken = t;
+	}
+
+	["opentag", "closetag", "doctype", "cdatastart", "cdataend"].forEach(function(name){
 		cbs["on" + name] = function(){
 			var t = Array.prototype.slice.call(arguments, 0);
 			t.unshift(name);
-			token.push(t);
+			addToken(t);
 		};
 	});
 
 	["text", "comment"].forEach(function(name){
 		cbs["on" + name] = function(data){
-			if(token.length && token[token.length-1][0] === name){
+			if(lastToken && lastToken[0] === name){
 				token[token.length-1][1] += data;
 				return;
 			}
-			token.push([name, data]);
+			addToken([name, data]);
 		};
 	});
 
-	file.options.parser.debug = true;
+	cbs.oncommentend = function(){ lastToken = null; };
 
 	var parser = new Parser(cbs, file.options.parser);
 
 	parser.end(file.html);
 
 	file.expected.forEach(function(t){
-		if(t.event === "opentagname" || t.event === "attribute") return;
+		if(t.event === "opentagname" || t.event === "attribute" || t.event === "commentend") return;
+		if(t.event === "processinginstruction"){
+			t.event = "comment"; //FIXME
+			t.data.shift();
+			if(t.data[0].charAt(0) === "!") t.data[0] = t.data[0].substr(1);
+		}
+
 		var cmp = token.shift();
-		console.log(t, cmp);
+
 		assert.equal(t.event, cmp.shift(), "should be the same event");
 		assert.deepEqual(t.data, cmp, "should have same payload");
 	});
+
+	assert.equal(token.length, 0, "all token should be checked");
 }
 
 function describe(name, func){
