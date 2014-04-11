@@ -18,7 +18,7 @@ var Tokenizer = require("./Tokenizer.js");
 	oncommentend,
 	onerror,
 	onopentag,
-	onprocessinginstruction,
+	ondoctype,
 	onreset,
 	ontext
 */
@@ -81,8 +81,6 @@ var voidElements = {
 	use: true
 };
 
-var re_nameEnd = /\s|\//;
-
 function Parser(cbs, options){
 	this._options = options || {};
 	this._cbs = cbs || {};
@@ -93,44 +91,15 @@ function Parser(cbs, options){
 	this._attribs = null;
 	this._stack = [];
 
-	this.startIndex = 0;
-	this.endIndex = null;
-
-	this._lowerCaseTagNames = "lowerCaseTags" in this._options ?
-									!!this._options.lowerCaseTags :
-									!this._options.xmlMode;
-	this._lowerCaseAttributeNames = "lowerCaseAttributeNames" in this._options ?
-									!!this._options.lowerCaseAttributeNames :
-									!this._options.xmlMode;
-
-	this._tokenizer = new Tokenizer(this._options, this);
+	this._tokenizer = new Tokenizer(this, this._options);
 }
-
-Parser.prototype._updatePosition = function(initialOffset){
-	if(this.endIndex === null){
-		if(this._tokenizer._sectionStart <= initialOffset){
-			this.startIndex = 0;
-		} else {
-			this.startIndex = this._tokenizer._sectionStart - initialOffset;
-		}
-	}
-	else this.startIndex = this.endIndex + 1;
-	this.endIndex = this._tokenizer._index;
-};
 
 //Tokenizer event handlers
 Parser.prototype.ontext = function(data){
-	this._updatePosition(1);
-	this.endIndex--;
-
 	if(this._cbs.ontext) this._cbs.ontext(data);
 };
 
 Parser.prototype.onopentagname = function(name){
-	if(this._lowerCaseTagNames){
-		name = name.toLowerCase();
-	}
-
 	this._tagname = name;
 
 	if (!this._options.xmlMode && name in openImpliesClose) {
@@ -150,8 +119,6 @@ Parser.prototype.onopentagname = function(name){
 };
 
 Parser.prototype.onopentagend = function(){
-	this._updatePosition(1);
-
 	if(this._attribs){
 		if(this._cbs.onopentag) this._cbs.onopentag(this._tagname, this._attribs);
 		this._attribs = null;
@@ -161,16 +128,14 @@ Parser.prototype.onopentagend = function(){
 		this._cbs.onclosetag(this._tagname);
 	}
 
+	if(!this._options.xmlMode && this._tagname === "script"){
+		this._tokenizer.consumeScriptData();
+	}
+
 	this._tagname = "";
 };
 
 Parser.prototype.onclosetag = function(name){
-	this._updatePosition(1);
-
-	if(this._lowerCaseTagNames){
-		name = name.toLowerCase();
-	}
-
 	if(this._stack.length && (!(name in voidElements) || this._options.xmlMode)){
 		var pos = this._stack.lastIndexOf(name);
 		if(pos !== -1){
@@ -212,95 +177,36 @@ Parser.prototype._closeCurrentTag = function(){
 	}
 };
 
-Parser.prototype.onattribname = function(name){
-	if(this._lowerCaseAttributeNames){
-		name = name.toLowerCase();
-	}
-	this._attribname = name;
-};
-
-Parser.prototype.onattribdata = function(value){
-	this._attribvalue += value;
-};
-
-Parser.prototype.onattribend = function(){
-	if(this._cbs.onattribute) this._cbs.onattribute(this._attribname, this._attribvalue);
+Parser.prototype.onattribute = function(name, value){
+	if(this._cbs.onattribute) this._cbs.onattribute(name, value);
 	if(
 		this._attribs &&
-		!Object.prototype.hasOwnProperty.call(this._attribs, this._attribname)
+		!Object.prototype.hasOwnProperty.call(this._attribs, name)
 	){
-		this._attribs[this._attribname] = this._attribvalue;
-	}
-	this._attribname = "";
-	this._attribvalue = "";
-};
-
-Parser.prototype.onboguscomment = function(value){
-	this._updatePosition(1);
-
-	if(this._options.xmlMode && this._cbs.onprocessinginstruction){
-		if(value.charAt(0) !== "!" && value.charAt(0) !== "?"){
-			value = "!" + value;
-		}
-
-		var idx = value.search(re_nameEnd),
-		    name = idx < 0 ? value : value.substr(0, idx);
-
-		if(this._lowerCaseTagNames){
-			name = name.toLowerCase();
-		}
-
-		this._cbs.onprocessinginstruction(name, value);
-	} else {
-		if(this._cbs.oncomment) this._cbs.oncomment(value);
-		if(this._cbs.oncommentend) this._cbs.oncommentend();
+		this._attribs[name] = value;
 	}
 };
 
 Parser.prototype.oncomment = function(value){
-	this._updatePosition(4);
-
 	if(this._cbs.oncomment) this._cbs.oncomment(value);
+};
+
+Parser.prototype.oncommentend = function(){
 	if(this._cbs.oncommentend) this._cbs.oncommentend();
 };
 
 Parser.prototype.oncdata = function(value){
-	this._updatePosition(1);
-
 	if(this._options.xmlMode || this._options.recognizeCDATA){
 		if(this._cbs.oncdatastart) this._cbs.oncdatastart();
 		if(this._cbs.ontext) this._cbs.ontext(value);
 		if(this._cbs.oncdataend) this._cbs.oncdataend();
-	} else {
-		this.oncomment("[CDATA[" + value + "]]");
 	}
 };
 
-//TODO consider renaming private variables
-Parser.prototype.ondoctypename = function(name){
-	this._tagname = name;
-};
-Parser.prototype.ondoctypepublic = function(value){
-	this._attribname = value;
-};
-Parser.prototype.ondoctypesystem = function(value){
-	this._attribvalue = value;
-};
-Parser.prototype.ondtquirksend = function(){
-	this._emitDoctype(true);
-};
-Parser.prototype.ondoctypeend = function(){
-	this._emitDoctype(false);
-};
-
-Parser.prototype._emitDoctype = function(quirks){
+Parser.prototype.ondoctype = function(name, publicIdent, systemIdent, normalMode){
 	if(this._cbs.ondoctype){
-		this._cbs.ondoctype(this._tagname, this._attribname, this._attribvalue, quirks);
+		this._cbs.ondoctype(name, publicIdent, systemIdent, normalMode);
 	}
-
-	this._tagname = "";
-	this._attribname = "";
-	this._attribvalue = "";
 };
 
 Parser.prototype.onerror = function(err){
