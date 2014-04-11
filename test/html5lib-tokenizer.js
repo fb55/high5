@@ -19,19 +19,14 @@ describe("html5lib-tests Tokenizer", function(){
 		if(!test.tests) return;
 
 		describe(n, function(){
-			test.tests.forEach(function(test){
+			test.tests.forEach(function(test){console.log(n, test.description);
 				describe(test.description, function(){
 					try {
-						if(test.initialStates){
-							test.initialStates.forEach(function(s){
-								executeTest(test, s.replace(" state", "_STATE"));
-							});
-						} else {
-							executeTest(test);
-						}
+						iterateStates(test, false);
 						succ++;
 					} catch(e){
 						console.log(test.description, test.input, e.message);
+						iterateStates(test, true);
 						fail++;
 					}
 				});
@@ -39,6 +34,16 @@ describe("html5lib-tests Tokenizer", function(){
 		});
 	});
 });
+
+function iterateStates(test, debug){
+	if(test.initialStates){
+		test.initialStates.forEach(function(s){
+			executeTest(test, s.replace(" state", ""), debug);
+		});
+	} else {
+		executeTest(test, null, debug);
+	}
+}
 
 function getCollector(){
 	var token = [],
@@ -116,9 +121,9 @@ function preprocessInput(str){
 		.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|([^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/g, "$1\ufffd");
 }
 
-function executeTest(test, initialState){
+function executeTest(test, initialState, debug){
 	var collector = getCollector(),
-	    tokenizer = new Tokenizer(collector, {decodeEntities: true});
+	    tokenizer = new Tokenizer(collector, {decodeEntities: true, debug: debug});
 
 	if(initialState) tokenizer._state = initialState;
 	if(test.lastStartTag) tokenizer._sequence = test.lastStartTag;
