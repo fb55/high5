@@ -2,4 +2,7 @@
 
 (eventually) spec-compliant html5 parser
 
-__This is still work in progress!__
+###State
+
+- Spec-compliant tokenizer
+- Rudimentary tag-handling (still a long way to go).
