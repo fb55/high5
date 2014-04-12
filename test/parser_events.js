@@ -15,12 +15,14 @@ function readDir(){
 		return path.join(dir, name);
 	})
 	.map(require)
-	.forEach(runTest);
+	.forEach(function(file, i){
+		it(i + 1 + " " + file.name, function(){
+			runTest(file);
+		});
+	});
 }
 
-function runTest(file, i){
-	console.log(i + 1, file.name);
-
+function runTest(file){
 	var cbs = {},
 	    token = [],
 	    lastToken = null;
@@ -69,9 +71,4 @@ function runTest(file, i){
 	});
 
 	assert.equal(token.length, 0, "all token should be checked");
-}
-
-function describe(name, func){
-	console.log(name);
-	func();
 }

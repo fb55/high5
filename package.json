@@ -7,7 +7,7 @@
     "test": "test"
   },
   "scripts": {
-    "test": "node test/*.js"
+    "test": "mocha -R min"
   },
   "repository": {
     "type": "git",
@@ -26,5 +26,8 @@
   "homepage": "https://github.com/fb55/high5",
   "dependencies": {
     "entities": "1.0"
+  },
+  "devDependencies": {
+    "mocha": "1"
   }
 }

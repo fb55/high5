@@ -5,9 +5,6 @@ var fs = require("fs"),
 
 var root = path.join(__dirname, "html5lib-tests", "tokenizer");
 
-var succ = 0,
-    fail = 0;
-
 describe("html5lib-tests Tokenizer", function(){
 	fs
 	.readdirSync(root)
@@ -19,16 +16,9 @@ describe("html5lib-tests Tokenizer", function(){
 		if(!test.tests) return;
 
 		describe(n, function(){
-			test.tests.forEach(function(test){console.log(n, test.description);
-				describe(test.description, function(){
-					try {
-						iterateStates(test, false);
-						succ++;
-					} catch(e){
-						console.log(test.description, test.input, e.message);
-						iterateStates(test, true);
-						fail++;
-					}
+			test.tests.forEach(function(test){
+				it(test.description, function(){
+					iterateStates(test, false);
 				});
 			});
 		});
@@ -88,7 +78,7 @@ function getCollector(){
 }
 
 function unescape(c){
-	return c.replace(/\\u([\dA-F]+)/g, function(_, c){ return String.fromCharCode(parseInt(c, 16)); });
+	return c.replace(/\\u[\dA-F]+/g, function(c){ return String.fromCharCode(parseInt(c.substr(2), 16)); });
 }
 
 function reduceCollection(c, esc){
@@ -144,12 +134,3 @@ function executeTest(test, initialState, debug){
 	tokenizer.end(preprocessInput(test.input));
 	assert.deepEqual(reduceCollection(collector.token), reduceCollection(test.output, true));
 }
-
-function describe(name, func){
-	//console.log(name);
-	func();
-}
-
-console.log("Total:", succ + fail, "Failed:", fail, "Success:", succ);
-
-process.exit(fail);
