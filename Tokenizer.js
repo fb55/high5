@@ -1241,9 +1241,11 @@ Tokenizer.prototype._parse = function(){
 	while(
 		this._index < this._buffer.length && this._running
 	){
-		if(this._debug) console.log("-> %j %s", this._buffer.charAt(this._index), this._state);
-		//TODO re-add giant branch tree
-		this[this._state](this._buffer.charAt(this._index));
+		var c = this._buffer.charAt(this._index);
+
+		if(this._debug) console.log("-> %j %s", c, this._state);
+
+		this[this._state](c);
 		this._index++;
 	}
 
