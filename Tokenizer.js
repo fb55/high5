@@ -1064,7 +1064,7 @@ _$[AFTER_CDATA_2] = function(c){
 		this._state = DATA;
 		this._cbs.oncdata(this._buffer.substring(this._sectionStart, this._index - 2));
 		this._sectionStart = this._index + 1;
-	} else if (c !== "]") {
+	} else if(c !== "]"){
 		this._state = IN_CDATA;
 	}
 	//else: stay in AFTER_CDATA_2 (`]]]>`)
@@ -1199,7 +1199,7 @@ Tokenizer.prototype._decodeNumericEntity = function(offset, base){
 	this._emitPartial(decodeCodePoint(parsed));
 };
 
-Tokenizer.prototype._cleanup = function () {
+Tokenizer.prototype._cleanup = function(){
 	if(this._sectionStart < 0){
 		this._buffer = "";
 		this._index = 0;
