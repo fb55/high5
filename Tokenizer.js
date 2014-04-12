@@ -1051,7 +1051,7 @@ _$[BEFORE_CDATA] = function(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = BOGUS_COMMENT;
-		this[BOGUS_DOCTYPE](c);
+		this[BOGUS_COMMENT](c);
 	}
 };
 
