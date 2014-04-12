@@ -128,7 +128,7 @@ function ifElseState(char, SUCCESS, FAILURE){
 			this._state = SUCCESS;
 		} else {
 			 this._state = FAILURE;
-			 this._index--;
+			 this[FAILURE](c);
 		}
 	};
 }
@@ -181,7 +181,7 @@ _$[SEQUENCE] = function(c){
 		}
 	} else {
 		this._state = this._baseState;
-		this._index--;
+		this[this._baseState](c);
 	}
 };
 
@@ -296,7 +296,7 @@ _$[TAG_OPEN] = function(c){
 	} else {
 		// parse error
 		this._state = DATA;
-		this._index--;
+		this[DATA](c);
 	}
 };
 
@@ -319,7 +319,7 @@ _$[END_TAG_OPEN] = function(c){
 		// parse error
 		this._state = BOGUS_COMMENT;
 		this._sectionStart = this._index;
-		this._index--;
+		this[BOGUS_COMMENT](c);
 	}
 };
 
@@ -352,7 +352,7 @@ function lessThanSignState(BASE_STATE, NEXT_STATE){
 			this._baseState = BASE_STATE;
 		} else {
 			this._state = BASE_STATE;
-			this._index--;
+			this[this._baseState](c);
 		}
 	};
 }
@@ -367,7 +367,7 @@ _$[END_TAG_NAME_STATE] = function(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = this._baseState;
-		this._index--;
+		this[this._baseState](c);
 	}
 };
 
@@ -399,7 +399,7 @@ _$[SCRIPT_DATA_LT_SIGN_STATE] = function(c){
 		this._state = SCRIPT_DATA_ESCAPE_START_STATE;
 	} else {
 		this._state = SCRIPT_DATA_STATE;
-		this._index--;
+		this[SCRIPT_DATA_STATE](c);
 	}
 };
 
@@ -439,7 +439,7 @@ _$[SCRIPT_DATA_ESCAPED_DASH_DASH_STATE] = function(c){
 		this._state = SCRIPT_DATA_STATE;
 	} else if(c !== "-"){
 		this._state = SCRIPT_DATA_ESCAPED_STATE;
-		this._index--;
+		this[SCRIPT_DATA_ESCAPED_STATE](c);
 	}
 };
 
@@ -490,7 +490,7 @@ _$[SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE] = function(c){
 		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
 	} else {
 		this._state = SCRIPT_DATA_ESCAPED_STATE;
-		this._index--;
+		this[SCRIPT_DATA_ESCAPED_STATE](c);
 	}
 };
 
@@ -521,7 +521,7 @@ _$[SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE] = function(c){
 		this._state = SCRIPT_DATA_STATE;
 	} else if(c !== "-"){
 		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
-		this._index--;
+		this[SCRIPT_DATA_DOUBLE_ESCAPED_STATE](c);
 	}
 };
 
@@ -532,7 +532,7 @@ _$[SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE] = function(c){
 		this._state = SCRIPT_DATA_ESCAPED_STATE;
 	} else {
 		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
-		this._index--;
+		this[SCRIPT_DATA_DOUBLE_ESCAPED_STATE](c);
 	}
 };
 
@@ -568,7 +568,7 @@ _$[ATTRIBUTE_NAME] = function(c){
 	if(c === "=" || c === "/" || c === ">" || whitespace(c)){
 		this._state = AFTER_ATTRIBUTE_NAME;
 		this._nameBuffer += this._getEndingSection();
-		this._index--;
+		this[AFTER_ATTRIBUTE_NAME](c);
 	} else if(c === "\0"){
 		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
 	} else if(this._lowerCaseAttributeNames && isUpperCaseChar(c)){
@@ -632,7 +632,7 @@ _$[BEFORE_ATTRIBUTE_VALUE] = function(c){
 		this._state = ATTRIBUTE_VALUE_NQ;
 		this._valueBuffer = "";
 		this._sectionStart = this._index;
-		this._index--;
+		this[ATTRIBUTE_VALUE_NQ](c);
 	}
 };
 
@@ -695,7 +695,7 @@ _$[SELF_CLOSING_START_TAG] = function(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = BEFORE_ATTRIBUTE_NAME;
-		this._index--;
+		this[BEFORE_ATTRIBUTE_NAME](c);
 	}
 };
 
@@ -725,7 +725,7 @@ _$[MARKUP_DECLARATION_OPEN] = function(c){
 		this._consumeSequence("CDATA", BEFORE_CDATA, BOGUS_COMMENT);
 	} else {
 		this._state = BOGUS_COMMENT;
-		this._index--;
+		this[BOGUS_COMMENT](c);
 	}
 };
 
@@ -750,7 +750,7 @@ _$[COMMENT_START] = function(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = COMMENT;
-		this._index--;
+		this[COMMENT](c);
 	}
 };
 
@@ -766,7 +766,7 @@ _$[COMMENT_START_DASH] = function(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = COMMENT;
-		this._index--;
+		this[COMMENT](c);
 	}
 };
 
@@ -800,7 +800,7 @@ _$[COMMENT_END] = function(c){
 		this._state = COMMENT_END_BANG;
 	} else if(c !== "-"){
 		this._state = COMMENT;
-		this._index--;
+		this[COMMENT](c);
 	}
 	// else: parse error, stay in COMMENT_END (`--->`)
 };
@@ -818,7 +818,7 @@ _$[COMMENT_END_BANG] = function(c){
 		this._state = COMMENT_END_DASH;
 	} else {
 		this._state = COMMENT;
-		this._index--;
+		this[COMMENT](c);
 	}
 };
 
@@ -1022,7 +1022,7 @@ _$[AFTER_DT_SYSTEM_IDENT] = function(c){
 		this._state = BOGUS_DOCTYPE;
 		this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, true);
 		this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
-		this._index--;
+		this[BOGUS_DOCTYPE](c);
 	}
 };
 
@@ -1051,7 +1051,7 @@ _$[BEFORE_CDATA] = function(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = BOGUS_COMMENT;
-		this._index--;
+		this[BOGUS_DOCTYPE](c);
 	}
 };
 
@@ -1075,7 +1075,7 @@ _$[BEFORE_ENTITY] = function(c){
 		this._state = BEFORE_NUMERIC_ENTITY;
 	} else {
 		this._state = IN_NAMED_ENTITY;
-		this._index--;
+		this[IN_NAMED_ENTITY](c);
 	}
 };
 
@@ -1084,7 +1084,7 @@ _$[BEFORE_NUMERIC_ENTITY] = function(c){
 		this._state = IN_HEX_ENTITY;
 	} else {
 		this._state = IN_NUMERIC_ENTITY;
-		this._index--;
+		this[IN_NUMERIC_ENTITY](c);
 	}
 };
 
@@ -1115,7 +1115,7 @@ _$[IN_NAMED_ENTITY] = function(c){
 		}
 
 		this._state = this._baseState;
-		this._index--;
+		this[this._baseState](c);
 	}
 };
 
@@ -1136,7 +1136,7 @@ _$[IN_NUMERIC_ENTITY] = function(c){
 			this._sectionStart = this._index;
 		}
 
-		this._index--;
+		this[this._baseState](c);
 	}
 };
 
@@ -1156,7 +1156,7 @@ _$[IN_HEX_ENTITY] = function(c){
 			this._sectionStart = this._index;
 		}
 
-		this._index--;
+		this[this._baseState](c);
 	}
 };
 
