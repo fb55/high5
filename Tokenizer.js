@@ -52,16 +52,16 @@ var decodeCodePoint = require("entities/lib/decode_codepoint.js"),
 
     END_TAG_NAME_STATE        = "END_TAG_NAME_STATE",
 
-    RCDATA_LESS_THAN_SIGN_STATE = "RCDATA_LESS_THAN_SIGN_STATE",
-    RAWTEXT_LESS_THAN_SIGN_STATE = "RAWTEXT_LESS_THAN_SIGN_STATE",
+    RCDATA_LT_SIGN_STATE      = "RCDATA_LT_SIGN_STATE",
+    RAWTEXT_LT_SIGN_STATE     = "RAWTEXT_LT_SIGN_STATE",
 
-    SCRIPT_DATA_LESS_THAN_SIGN_STATE = "SCRIPT_DATA_LESS_THAN_SIGN_STATE",
+    SCRIPT_DATA_LT_SIGN_STATE = "SCRIPT_DATA_LT_SIGN_STATE",
     SCRIPT_DATA_ESCAPE_START_STATE = "SCRIPT_DATA_ESCAPE_START_STATE",
     SCRIPT_DATA_ESCAPE_START_DASH_STATE = "SCRIPT_DATA_ESCAPE_START_DASH_STATE",
     SCRIPT_DATA_ESCAPED_STATE = "SCRIPT_DATA_ESCAPED_STATE",
     SCRIPT_DATA_ESCAPED_DASH_STATE = "SCRIPT_DATA_ESCAPED_DASH_STATE",
     SCRIPT_DATA_ESCAPED_DASH_DASH_STATE = "SCRIPT_DATA_ESCAPED_DASH_DASH_STATE",
-    SCRIPT_DATA_ESCAPED_LESS_THAN_SIGN_STATE = "SCRIPT_DATA_ESCAPED_LESS_THAN_SIGN_STATE",
+    SCRIPT_DATA_ESCAPED_LT_SIGN_STATE = "SCRIPT_DATA_ESCAPED_LT_SIGN_STATE",
     SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE = "SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE",
     SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE = "SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE",
     SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE = "SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE",
@@ -186,10 +186,10 @@ _$[SEQUENCE] = function(c){
 	}
 };
 
-function textState(LESS_THAN_SIGN_STATE){
+function textState(LT_SIGN_STATE){
 	return function(c){
 		if(c === "<"){
-			this._state = LESS_THAN_SIGN_STATE;
+			this._state = LT_SIGN_STATE;
 			if(this._index > this._sectionStart){
 				this._cbs.ontext(this._getSection());
 			}
@@ -235,7 +235,7 @@ _$[RCDATA_STATE] = function(c){
 		}
 		this._sectionStart = this._index;
 	} else if(c === "<"){
-		this._state = RCDATA_LESS_THAN_SIGN_STATE;
+		this._state = RCDATA_LT_SIGN_STATE;
 		if(this._index > this._sectionStart){
 			this._cbs.ontext(this._getSection());
 		}
@@ -252,12 +252,12 @@ _$[RCDATA_STATE] = function(c){
 
 // 12.2.4.5 RAWTEXT state
 
-_$[RAWTEXT_STATE] = textState(RAWTEXT_LESS_THAN_SIGN_STATE);
+_$[RAWTEXT_STATE] = textState(RAWTEXT_LT_SIGN_STATE);
 
 
 // 12.2.4.6 Script data state
 
-_$[SCRIPT_DATA_STATE] = textState(SCRIPT_DATA_LESS_THAN_SIGN_STATE);
+_$[SCRIPT_DATA_STATE] = textState(SCRIPT_DATA_LT_SIGN_STATE);
 
 
 // 12.2.4.7 PLAINTEXT state
@@ -374,7 +374,7 @@ _$[END_TAG_NAME_STATE] = function(c){
 
 // 12.2.4.11 RCDATA less-than sign state
 
-_$[RCDATA_LESS_THAN_SIGN_STATE] = lessThanSignState(RCDATA_STATE, END_TAG_NAME_STATE);
+_$[RCDATA_LT_SIGN_STATE] = lessThanSignState(RCDATA_STATE, END_TAG_NAME_STATE);
 
 //skipped 12.2.4.12 RCDATA end tag open state (using SEQUENCE instead)
 //skipped 12.2.4.13 RCDATA end tag name state
@@ -382,7 +382,7 @@ _$[RCDATA_LESS_THAN_SIGN_STATE] = lessThanSignState(RCDATA_STATE, END_TAG_NAME_S
 
 // 12.2.4.14 RAWTEXT less-than sign state
 
-_$[RAWTEXT_LESS_THAN_SIGN_STATE] = lessThanSignState(RAWTEXT_STATE, END_TAG_NAME_STATE);
+_$[RAWTEXT_LT_SIGN_STATE] = lessThanSignState(RAWTEXT_STATE, END_TAG_NAME_STATE);
 
 //skipped 12.2.4.15 RAWTEXT end tag open state
 //skipped 12.2.4.16 RAWTEXT end tag name state
@@ -390,7 +390,7 @@ _$[RAWTEXT_LESS_THAN_SIGN_STATE] = lessThanSignState(RAWTEXT_STATE, END_TAG_NAME
 
 // 12.2.4.17 Script data less-than sign state
 
-_$[SCRIPT_DATA_LESS_THAN_SIGN_STATE] = function(c){
+_$[SCRIPT_DATA_LT_SIGN_STATE] = function(c){
 	if(c === "/"){
 		this._state = SEQUENCE;
 		this._sequenceIndex = 0;
