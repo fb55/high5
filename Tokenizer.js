@@ -185,25 +185,6 @@ _$[SEQUENCE] = function(c){
 	}
 };
 
-function textState(LT_SIGN_STATE){
-	return function(c){
-		if(c === "<"){
-			this._state = LT_SIGN_STATE;
-			if(this._index > this._sectionStart){
-				this._cbs.ontext(this._getSection());
-			}
-			this._sectionStart = this._index;
-		} else if(c === "\0"){
-			// parse error
-			if(this._index > this._sectionStart){
-				this._cbs.ontext(this._getSection());
-			}
-			this._cbs.ontext(REPLACEMENT_CHARACTER);
-			this._sectionStart = this._index + 1;
-		}
-	};
-}
-
 // 8.2.4.1 Data state
 
 _$[DATA] = function(c){
@@ -212,8 +193,8 @@ _$[DATA] = function(c){
 		this._state = BEFORE_ENTITY;
 		if(this._index > this._sectionStart){
 			this._cbs.ontext(this._getSection());
+			this._sectionStart = this._index;
 		}
-		this._sectionStart = this._index;
 	} else if(c === "<"){
 		this._state = TAG_OPEN;
 		if(this._index > this._sectionStart){
@@ -231,23 +212,32 @@ _$[RCDATA_STATE] = function(c){
 		this._state = BEFORE_ENTITY;
 		if(this._index > this._sectionStart){
 			this._cbs.ontext(this._getSection());
+			this._sectionStart = this._index;
 		}
-		this._sectionStart = this._index;
 	} else if(c === "<"){
 		this._state = RCDATA_LT_SIGN_STATE;
 		if(this._index > this._sectionStart){
 			this._cbs.ontext(this._getSection());
+			this._sectionStart = this._index;
 		}
-		this._sectionStart = this._index;
-	} else if(c === "\0"){
-		// parse error
-		if(this._index > this._sectionStart){
-			this._cbs.ontext(this._getSection());
-		}
-		this._cbs.ontext(REPLACEMENT_CHARACTER);
-		this._sectionStart = this._index + 1;
+	} else {
+		this[PLAINTEXT_STATE](c);
 	}
 };
+
+function textState(LT_SIGN_STATE){
+	return function(c){
+		if(c === "<"){
+			this._state = LT_SIGN_STATE;
+			if(this._index > this._sectionStart){
+				this._cbs.ontext(this._getSection());
+				this._sectionStart = this._index;
+			}
+		} else {
+			this[PLAINTEXT_STATE](c);
+		}
+	};
+}
 
 // 12.2.4.5 RAWTEXT state
 
