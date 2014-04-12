@@ -107,7 +107,6 @@ function reduceCollection(c, esc){
 
 function preprocessInput(str){
 	return unescape(str)
-		.replace(/\r\n?/g, "\n")
 		.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|([^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/g, "$1\ufffd");
 }
 
