@@ -462,10 +462,10 @@ _$[SCRIPT_DATA_ESCAPED_LT_SIGN_STATE] = function(c){
 
 // 8.2.4.26 Script data escaped end tag open state
 
-_$[SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE] = function(){
+_$[SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE] = function(c){
 	this._state = SCRIPT_DATA_ESCAPED_STATE;
 	this._cbs.ontext("<-");
-	this._index--;
+	this[SCRIPT_DATA_ESCAPED_STATE](c);
 };
 
 // 8.2.4.27 Script data escaped end tag name state
@@ -479,7 +479,7 @@ _$[SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE] = function(c){
 		this._nameBuffer = this._sequence;
 		this._state = AFTER_CLOSING_TAG_NAME;
 	} else {
-		this[SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE]();
+		this[SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE](c);
 	}
 };
 
@@ -1027,11 +1027,11 @@ _$[AFTER_DT_SYSTEM_IDENT] = function(c){
 };
 
 //helper for sequences
-_$[BOGUS_EVIL_DOCTYPE] = function(){
+_$[BOGUS_EVIL_DOCTYPE] = function(c){
 	this._state = BOGUS_DOCTYPE;
 	this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, false);
 	this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
-	this._index--;
+	this[BOGUS_DOCTYPE](c);
 };
 
 // 8.2.4.67 Bogus DOCTYPE state
