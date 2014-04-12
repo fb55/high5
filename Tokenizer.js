@@ -68,7 +68,6 @@ var decodeCodePoint = require("entities/lib/decode_codepoint.js"),
     SCRIPT_DATA_DOUBLE_ESCAPED_STATE = "SCRIPT_DATA_DOUBLE_ESCAPED_STATE",
     SCRIPT_DATA_DOUBLE_ESCAPED_DASH_STATE = "SCRIPT_DATA_DOUBLE_ESCAPED_DASH_STATE",
     SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE = "SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE",
-    SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN_SIGN_STATE = "SCRIPT_DATA_DOUBLE_ESCAPED_LESS_THAN_SIGN_STATE",
     SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE = "SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE",
 
     BEFORE_DOCTYPE_NAME       = "BEFORE_DOCTYPE_NAME",
@@ -416,7 +415,126 @@ _$[SCRIPT_DATA_ESCAPE_START_STATE] = ifElseState("-", SCRIPT_DATA_ESCAPE_START_D
 
 _$[SCRIPT_DATA_ESCAPE_START_DASH_STATE] = ifElseState("-", SCRIPT_DATA_ESCAPED_DASH_DASH_STATE, SCRIPT_DATA_STATE);
 
-//TODO support remaining SCRIPT_DATA states
+// 8.2.4.22 Script data escaped state
+
+_$[SCRIPT_DATA_ESCAPED_STATE] = function(c){
+	if(c === "<"){
+		this._state = SCRIPT_DATA_ESCAPED_LT_SIGN_STATE;
+	} else if(c === "-"){
+		this._state = SCRIPT_DATA_ESCAPED_DASH_STATE;
+	} else if(c === "\0"){
+		// parse error
+		this._cbs.ontext(this._getPartialSection() + REPLACEMENT_CHARACTER);
+	}
+};
+
+// 8.2.4.23 Script data escaped dash state
+
+_$[SCRIPT_DATA_ESCAPED_DASH_STATE] = ifElseState("-", SCRIPT_DATA_ESCAPED_DASH_DASH_STATE, SCRIPT_DATA_ESCAPED_STATE);
+ 
+// 8.2.4.24 Script data escaped dash dash state
+
+_$[SCRIPT_DATA_ESCAPED_DASH_DASH_STATE] = function(c){
+	if(c === ">"){
+		this._state = SCRIPT_DATA_STATE;
+	} else if(c !== "-"){
+		this._state = SCRIPT_DATA_ESCAPED_STATE;
+		this._index--;
+	}
+};
+
+// 8.2.4.25 Script data escaped less-than sign state
+
+_$[SCRIPT_DATA_ESCAPED_LT_SIGN_STATE] = function(c){
+	if(c === "s" || c === "S"){
+		this._state = SEQUENCE;
+		this._sequenceIndex = 1;
+		this._baseState = SCRIPT_DATA_ESCAPED_STATE;
+		this._nextState = SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE;
+	} else if(c === "/"){
+		this._cbs.ontext(this._getPartialSection());
+		this._state = SEQUENCE;
+		this._sequenceIndex = 0;
+		this._baseState = SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE;
+		this._nextState = SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE;
+	}
+};
+
+// 8.2.4.26 Script data escaped end tag open state
+
+_$[SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE] = function(){
+	this._state = SCRIPT_DATA_ESCAPED_STATE;
+	this._cbs.ontext("<-");
+	this._index--;
+};
+
+// 8.2.4.27 Script data escaped end tag name state
+
+_$[SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE] = function(c){
+	if(c === ">"){
+		this._state = DATA;
+		this._cbs.onclosetag(this._sequence);
+		this._sectionStart = this._index + 1;
+	} else if(whitespace(c) || c === "/"){
+		this._nameBuffer = this._sequence;
+		this._state = AFTER_CLOSING_TAG_NAME;
+	} else {
+		this[SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE]();
+	}
+};
+
+// 8.2.4.28 Script data double escape start state
+
+_$[SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE] = function(c){
+	if(c === ">" || c === "/" || whitespace(c)){
+		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
+	} else {
+		this._state = SCRIPT_DATA_ESCAPED_STATE;
+		this._index--;
+	}
+};
+
+// 8.2.4.29 Script data double escaped state
+
+_$[SCRIPT_DATA_DOUBLE_ESCAPED_STATE] = function(c){
+	if(c === "<"){
+		this._state = SEQUENCE;
+		this._sequenceIndex = 0;
+		this._baseState = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
+		this._nextState = SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE;
+	} else if(c === "-"){
+		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_DASH_STATE;
+	} else if(c === "\0"){
+		// parse error
+		this._cbs.ontext(this._getPartialSection() + REPLACEMENT_CHARACTER);
+	}
+};
+
+// 8.2.4.30 Script data double escaped dash state
+
+_$[SCRIPT_DATA_DOUBLE_ESCAPED_DASH_STATE] = ifElseState("-", SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE, SCRIPT_DATA_DOUBLE_ESCAPED_STATE);
+
+// 8.2.4.31 Script data double escaped dash dash state
+
+_$[SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE] = function(c){
+	if(c === ">"){
+		this._state = SCRIPT_DATA_STATE;
+	} else if(c !== "-"){
+		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
+		this._index--;
+	}
+};
+
+//skipped 8.2.4.32 Script data double escaped less-than sign state
+
+_$[SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE] = function(c){
+	if(c === ">" || c === "/" || whitespace(c)){
+		this._state = SCRIPT_DATA_ESCAPED_STATE;
+	} else {
+		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
+		this._index--;
+	}
+};
 
 // 8.2.4.34 Before attribute name state
 
