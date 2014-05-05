@@ -149,12 +149,12 @@ function Tokenizer(cbs, options){
 	this._xmlMode = !!(options && options.xmlMode);
 	this._decodeEntities = !!(options && options.decodeEntities);
 
-	this._lowerCaseTagNames = options && "lowerCaseTags" in options ?
-									!!options.lowerCaseTags :
-									!this._xmlMode;
-	this._lowerCaseAttributeNames = options && "lowerCaseAttributeNames" in options ?
-									!!options.lowerCaseAttributeNames :
-									!this._xmlMode;
+	this._lowerCaseTagNames =
+		options && "lowerCaseTags" in options ? !!options.lowerCaseTags : !this._xmlMode;
+	this._lowerCaseAttributeNames =
+		options && "lowerCaseAttributeNames" in options ? !!options.lowerCaseAttributeNames : !this._xmlMode;
+	this._recognizeCDATA =
+		options && "recognizeCDATA" in options ? !!options.recognizeCDATA : this._xmlMode;
 
 	this._debug = !!(options && options.debug);
 
@@ -351,7 +351,7 @@ function lessThanSignState(BASE_STATE, NEXT_STATE){
 			this._baseState = BASE_STATE;
 		} else {
 			this._state = BASE_STATE;
-			this[this._baseState](c);
+			this[BASE_STATE](c);
 		}
 	};
 }
@@ -735,7 +735,7 @@ _$[MARKUP_DECLARATION_OPEN] = function(c){
 		this._state = BEFORE_COMMENT;
 	} else if(c === "d" || c === "D"){
 		this._consumeSequence("octype", BEFORE_DOCTYPE_NAME, BOGUS_COMMENT);
-	} else if(c === "["){ //TODO check context?
+	} else if(this._recognizeCDATA && c === "["){
 		this._consumeSequence("CDATA", BEFORE_CDATA, BOGUS_COMMENT);
 	} else {
 		this._state = BOGUS_COMMENT;

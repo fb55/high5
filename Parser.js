@@ -200,14 +200,9 @@ Parser.prototype.oncommentend = function(){
 };
 
 Parser.prototype.oncdata = function(value){
-	if(this._options.xmlMode || this._options.recognizeCDATA){
-		if(this._cbs.oncdatastart) this._cbs.oncdatastart();
-		if(this._cbs.ontext) this._cbs.ontext(value);
-		if(this._cbs.oncdataend) this._cbs.oncdataend();
-	} else {
-		if(this._cbs.oncomment) this.oncomment("[CDATA[" + value + "]]");
-		if(this._cbs.oncommentend) this._cbs.oncommentend();
-	}
+	if(this._cbs.oncdatastart) this._cbs.oncdatastart();
+	if(this._cbs.ontext) this._cbs.ontext(value);
+	if(this._cbs.oncdataend) this._cbs.oncdataend();
 };
 
 Parser.prototype.ondoctype = function(name, publicIdent, systemIdent, normalMode){
