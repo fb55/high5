@@ -1,6 +1,6 @@
 {
   "name": "high5",
-  "version": "0.0.0-prev2",
+  "version": "0.0.1",
   "description": "(eventually) spec-compliant html 5 parser",
   "main": "Parser.js",
   "directories": {
