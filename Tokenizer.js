@@ -1416,7 +1416,14 @@ Tokenizer.prototype._finish = function(){
 };
 
 Tokenizer.prototype.reset = function(){
-	Tokenizer.call(this, {xmlMode: this._xmlMode, decodeEntities: this._decodeEntities}, this._cbs);
+	Tokenizer.call(this, this._cbs, {
+		xmlMode: this._xmlMode,
+		decodeEntities: this._decodeEntities,
+		lowerCaseTags: this._lowerCaseTagNames,
+		lowerCaseAttributeNames: this._lowerCaseAttributeNames,
+		recognizeCDATA: this._recognizeCDATA,
+		debug: this._debug
+	});
 };
 
 Tokenizer.prototype._getSection = function(){
