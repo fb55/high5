@@ -14,7 +14,7 @@ Some of the things that will be supported:
 - [ ] Add a _document mode_. (`htmlparser2` is always in _fragment mode_, meaning that eg. the empty document (`""`) will result in an empty DOM.)
 - [ ] Implicit opening & closing tags. (`htmlparser2` only checks the top element of the stack for the latter.)
 - [ ] Foster parenting (eg. `<table><a>foo</a>…` should be handled as `<a>foo</a><table>…`).
-- [ ] (Potentially) handle character encodings (?).
+- [ ] \(Potentially) handle character encodings (?).
 
 ###State
 
