@@ -205,6 +205,25 @@ Parser.prototype.oncdata = function(value){
 	if(this._cbs.oncdataend) this._cbs.oncdataend();
 };
 
+var re_nameEnd = /\s|\//;
+
+Parser.prototype.onprocessinginstruction = function(value){
+	if(this._cbs.onprocessinginstruction){
+		if(value.charAt(0) !== "?"){
+			value = "!" + value;
+		}
+
+		var idx = value.search(re_nameEnd),
+		    name = idx < 0 ? value : value.substr(0, idx);
+
+		if(this._lowerCaseTagNames){
+			name = name.toLowerCase();
+		}
+
+		this._cbs.onprocessinginstruction(name, value);
+	}
+};
+
 Parser.prototype.ondoctype = function(name, publicIdent, systemIdent, normalMode){
 	if(this._cbs.ondoctype){
 		this._cbs.ondoctype(name, publicIdent, systemIdent, normalMode);

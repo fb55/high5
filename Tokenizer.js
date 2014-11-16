@@ -86,6 +86,7 @@ var decodeCodePoint = require("entities/lib/decode_codepoint.js"),
 
     SEQUENCE                  = "SEQUENCE",
     SKIP_NEWLINE              = "SKIP_NEWLINE",
+    XML_DECLARATION           = "XML_DECLARATION",
 
     REPLACEMENT_CHARACTER     = "\ufffd";
 
@@ -270,7 +271,6 @@ _$[PLAINTEXT_STATE] = function(c){
 // 8.2.4.8 Tag open state
 
 _$[TAG_OPEN] = function(c){
-	//TODO recognize XML mode
 	if(c === "!"){
 		this._state = MARKUP_DECLARATION_OPEN;
 		this._sectionStart = this._index + 1;
@@ -285,13 +285,25 @@ _$[TAG_OPEN] = function(c){
 		this._nameBuffer = "";
 		this._sectionStart = this._index;
 	} else if(c === "?"){
-		// parse error
-		this._state = BOGUS_COMMENT;
+		if(this._xmlMode){
+			this._state = XML_DECLARATION;
+		} else {
+			// parse error
+			this._state = BOGUS_COMMENT;
+		}
 		this._sectionStart = this._index;
 	} else {
 		// parse error
 		this._state = DATA;
 		this[DATA](c);
+	}
+};
+
+_$[XML_DECLARATION] = function(c){
+	//TODO fully support xml declarations
+	if(c === ">"){
+		this._cbs.onprocessinginstruction(this._getPartialSection());
+		this._state = DATA;
 	}
 };
 
@@ -340,6 +352,7 @@ _$[TAG_NAME] = function(c){
 	} else if(this._lowerCaseTagNames && isUpperCaseChar(c)){
 		this._nameBuffer += this._getPartialSection() + lowerCaseChar(c);
 	}
+	// else add character to section
 };
 
 function lessThanSignState(BASE_STATE, NEXT_STATE){
@@ -737,6 +750,8 @@ _$[MARKUP_DECLARATION_OPEN] = function(c){
 		this._consumeSequence("octype", BEFORE_DOCTYPE_NAME, BOGUS_COMMENT);
 	} else if(this._recognizeCDATA && c === "["){
 		this._consumeSequence("CDATA", BEFORE_CDATA, BOGUS_COMMENT);
+	} else if(this._xmlMode){
+		this._state = XML_DECLARATION;
 	} else {
 		this._state = BOGUS_COMMENT;
 		this[BOGUS_COMMENT](c);
