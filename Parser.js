@@ -4,8 +4,8 @@ var Tokenizer = require("./Tokenizer.js");
 	Options:
 
 	xmlMode: Special behavior for script/style tags (true by default)
-	lowerCaseAttributeNames: call .toLowerCase for each attribute name (true if xmlMode is `false`)
-	lowerCaseTags: call .toLowerCase for each tag name (true if xmlMode is `false`)
+	lowerCaseAttributeNames: lowercase each attribute name (true if xmlMode is `false`)
+	lowerCaseTags: lowercase each tag name (true if xmlMode is `false`)
 */
 
 /*
@@ -34,20 +34,26 @@ var formTags = {
 };
 
 var openImpliesClose = {
-	tr      : { tr:true, th:true, td:true },
-	th      : { th:true },
-	td      : { thead:true, td:true },
-	body    : { head:true, link:true, script:true },
-	li      : { li:true },
-	p       : { p:true },
+	tr      : { tr: true, th: true, td: true },
+	th      : { th: true },
+	td      : { thead: true, td: true },
+	body    : { head: true, link: true, script: true },
+	li      : { li: true },
+	p       : { p: true },
+	h1      : { p: true },
+	h2      : { p: true },
+	h3      : { p: true },
+	h4      : { p: true },
+	h5      : { p: true },
+	h6      : { p: true },
 	select  : formTags,
 	input   : formTags,
 	output  : formTags,
 	button  : formTags,
 	datalist: formTags,
 	textarea: formTags,
-	option  : { option:true },
-	optgroup: { optgroup:true }
+	option  : { option: true },
+	optgroup: { optgroup: true }
 };
 
 var voidElements = {
@@ -78,7 +84,10 @@ var voidElements = {
 	ellipse: true,
 	line: true,
 	rect: true,
-	use: true
+	use: true,
+	stop: true,
+	polyline: true,
+	polygone: true
 };
 
 function Parser(cbs, options){
