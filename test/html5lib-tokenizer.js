@@ -1,7 +1,7 @@
 var fs = require("fs"),
     path = require("path"),
     assert = require("assert"),
-    Tokenizer = require("../Tokenizer.js");
+    Tokenizer = require("../");
 
 var root = path.join(__dirname, "html5lib-tests", "tokenizer");
 
