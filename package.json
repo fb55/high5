@@ -27,6 +27,6 @@
     "entities": "1.0"
   },
   "devDependencies": {
-    "mocha": "1"
+    "mocha": "2"
   }
 }
