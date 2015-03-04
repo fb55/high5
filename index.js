@@ -157,8 +157,6 @@ function Tokenizer(cbs, options){
 	this._recognizeCDATA =
 		options && "recognizeCDATA" in options ? !!options.recognizeCDATA : this._xmlMode;
 
-	this._debug = !!(options && options.debug);
-
 	this._nameBuffer = null;
 	this._valueBuffer = null;
 	this._systemBuffer = null;
@@ -1283,8 +1281,6 @@ Tokenizer.prototype._parse = function(){
 	){
 		var c = this._buffer.charAt(this._index);
 
-		if(this._debug) console.log("-> %j %s", c, this._state);
-
 		this[this._state](c);
 		this._index++;
 	}
@@ -1338,8 +1334,6 @@ Tokenizer.prototype.end = function(chunk){
 Tokenizer.prototype._finish = function(){
 	//if there is remaining data, emit it in a reasonable way
 	var data = this._buffer.substr(this._sectionStart);
-
-	if(this._debug) console.log("-| %s %j", this._state, data);
 
 	if(
 		this._state === AFTER_DOCTYPE_NAME ||
@@ -1436,8 +1430,7 @@ Tokenizer.prototype.reset = function(){
 		decodeEntities: this._decodeEntities,
 		lowerCaseTags: this._lowerCaseTagNames,
 		lowerCaseAttributeNames: this._lowerCaseAttributeNames,
-		recognizeCDATA: this._recognizeCDATA,
-		debug: this._debug
+		recognizeCDATA: this._recognizeCDATA
 	});
 };
 
