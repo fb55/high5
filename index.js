@@ -5,88 +5,91 @@ var decodeCodePoint = require("entities/lib/decode_codepoint.js"),
     legacyMap = require("entities/maps/legacy.json"),
     xmlMap    = require("entities/maps/xml.json"),
 
-    DATA                      = "DATA",
-    RCDATA_STATE              = "RCDATA_STATE",
-    RAWTEXT_STATE             = "RAWTEXT_STATE",
-    SCRIPT_DATA_STATE         = "SCRIPT_DATA_STATE",
-    PLAINTEXT_STATE           = "PLAINTEXT_STATE",
+    n = 0;
 
-    TAG_OPEN                  = "TAG_OPEN", //after <
-    TAG_NAME                  = "TAG_NAME",
-    SELF_CLOSING_START_TAG    = "SELF_CLOSING_START_TAG",
-    END_TAG_OPEN              = "END_TAG_OPEN",
-    IN_CLOSING_TAG_NAME       = "IN_CLOSING_TAG_NAME",
-    AFTER_CLOSING_TAG_NAME    = "AFTER_CLOSING_TAG_NAME",
+const
+    DATA                      = n++,
+    RCDATA_STATE              = n++,
+    RAWTEXT_STATE             = n++,
+    SCRIPT_DATA_STATE         = n++,
+    PLAINTEXT_STATE           = n++,
+
+    TAG_OPEN                  = n++, //after <
+    TAG_NAME                  = n++,
+    SELF_CLOSING_START_TAG    = n++,
+    END_TAG_OPEN              = n++,
+    IN_CLOSING_TAG_NAME       = n++,
+    AFTER_CLOSING_TAG_NAME    = n++,
 
     //attributes
-    BEFORE_ATTRIBUTE_NAME     = "BEFORE_ATTRIBUTE_NAME",
-    ATTRIBUTE_NAME            = "ATTRIBUTE_NAME",
-    AFTER_ATTRIBUTE_NAME      = "AFTER_ATTRIBUTE_NAME",
-    BEFORE_ATTRIBUTE_VALUE    = "BEFORE_ATTRIBUTE_VALUE",
-    ATTRIBUTE_VALUE_DQ        = "ATTRIBUTE_VALUE_DQ", // "
-    ATTRIBUTE_VALUE_SQ        = "ATTRIBUTE_VALUE_SQ", // '
-    ATTRIBUTE_VALUE_NQ        = "ATTRIBUTE_VALUE_NQ",
+    BEFORE_ATTRIBUTE_NAME     = n++,
+    ATTRIBUTE_NAME            = n++,
+    AFTER_ATTRIBUTE_NAME      = n++,
+    BEFORE_ATTRIBUTE_VALUE    = n++,
+    ATTRIBUTE_VALUE_DQ        = n++, // "
+    ATTRIBUTE_VALUE_SQ        = n++, // '
+    ATTRIBUTE_VALUE_NQ        = n++,
 
     //comments
-    MARKUP_DECLARATION_OPEN   = "MARKUP_DECLARATION_OPEN", // !
-    BOGUS_COMMENT             = "BOGUS_COMMENT",
-    BEFORE_COMMENT            = "BEFORE_COMMENT",
-    COMMENT_START             = "COMMENT_START",
-    COMMENT_START_DASH        = "COMMENT_START_DASH",
-    COMMENT                   = "COMMENT",
-    COMMENT_END_DASH          = "COMMENT_END_DASH",
-    COMMENT_END               = "COMMENT_END",
-    COMMENT_END_BANG          = "COMMENT_END_BANG",
+    MARKUP_DECLARATION_OPEN   = n++, // !
+    BOGUS_COMMENT             = n++,
+    BEFORE_COMMENT            = n++,
+    COMMENT_START             = n++,
+    COMMENT_START_DASH        = n++,
+    COMMENT                   = n++,
+    COMMENT_END_DASH          = n++,
+    COMMENT_END               = n++,
+    COMMENT_END_BANG          = n++,
 
     //cdata
-    BEFORE_CDATA              = "BEFORE_CDATA",
-    IN_CDATA                  = "IN_CDATA",
-    AFTER_CDATA_1             = "AFTER_CDATA_1",  // ]
-    AFTER_CDATA_2             = "AFTER_CDATA_2",  // ]
+    BEFORE_CDATA              = n++,
+    IN_CDATA                  = n++,
+    AFTER_CDATA_1             = n++,  // ]
+    AFTER_CDATA_2             = n++,  // ]
 
-    BEFORE_ENTITY             = "BEFORE_ENTITY", //&
-    BEFORE_NUMERIC_ENTITY     = "BEFORE_NUMERIC_ENTITY", //#
-    IN_NAMED_ENTITY           = "IN_NAMED_ENTITY",
-    IN_NUMERIC_ENTITY         = "IN_NUMERIC_ENTITY",
-    IN_HEX_ENTITY             = "IN_HEX_ENTITY", //X
+    BEFORE_ENTITY             = n++, //&
+    BEFORE_NUMERIC_ENTITY     = n++, //#
+    IN_NAMED_ENTITY           = n++,
+    IN_NUMERIC_ENTITY         = n++,
+    IN_HEX_ENTITY             = n++, //X
 
-    END_TAG_NAME_STATE        = "END_TAG_NAME_STATE",
+    END_TAG_NAME_STATE        = n++,
 
-    RCDATA_LT_SIGN_STATE      = "RCDATA_LT_SIGN_STATE",
-    RAWTEXT_LT_SIGN_STATE     = "RAWTEXT_LT_SIGN_STATE",
+    RCDATA_LT_SIGN_STATE      = n++,
+    RAWTEXT_LT_SIGN_STATE     = n++,
 
-    SCRIPT_DATA_LT_SIGN_STATE = "SCRIPT_DATA_LT_SIGN_STATE",
-    SCRIPT_DATA_ESCAPE_START_STATE = "SCRIPT_DATA_ESCAPE_START_STATE",
-    SCRIPT_DATA_ESCAPE_START_DASH_STATE = "SCRIPT_DATA_ESCAPE_START_DASH_STATE",
-    SCRIPT_DATA_ESCAPED_STATE = "SCRIPT_DATA_ESCAPED_STATE",
-    SCRIPT_DATA_ESCAPED_DASH_STATE = "SCRIPT_DATA_ESCAPED_DASH_STATE",
-    SCRIPT_DATA_ESCAPED_DASH_DASH_STATE = "SCRIPT_DATA_ESCAPED_DASH_DASH_STATE",
-    SCRIPT_DATA_ESCAPED_LT_SIGN_STATE = "SCRIPT_DATA_ESCAPED_LT_SIGN_STATE",
-    SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE = "SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE",
-    SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE = "SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE",
-    SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE = "SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE",
-    SCRIPT_DATA_DOUBLE_ESCAPED_STATE = "SCRIPT_DATA_DOUBLE_ESCAPED_STATE",
-    SCRIPT_DATA_DOUBLE_ESCAPED_DASH_STATE = "SCRIPT_DATA_DOUBLE_ESCAPED_DASH_STATE",
-    SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE = "SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE",
-    SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE = "SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE",
+    SCRIPT_DATA_LT_SIGN_STATE = n++,
+    SCRIPT_DATA_ESCAPE_START_STATE = n++,
+    SCRIPT_DATA_ESCAPE_START_DASH_STATE = n++,
+    SCRIPT_DATA_ESCAPED_STATE = n++,
+    SCRIPT_DATA_ESCAPED_DASH_STATE = n++,
+    SCRIPT_DATA_ESCAPED_DASH_DASH_STATE = n++,
+    SCRIPT_DATA_ESCAPED_LT_SIGN_STATE = n++,
+    SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE = n++,
+    SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE = n++,
+    SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE = n++,
+    SCRIPT_DATA_DOUBLE_ESCAPED_STATE = n++,
+    SCRIPT_DATA_DOUBLE_ESCAPED_DASH_STATE = n++,
+    SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE = n++,
+    SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE = n++,
 
-    BEFORE_DOCTYPE_NAME       = "BEFORE_DOCTYPE_NAME",
-    DOCTYPE_NAME              = "DOCTYPE_NAME",
-    AFTER_DOCTYPE_NAME        = "AFTER_DOCTYPE_NAME",
-    AFTER_DT_PUBLIC           = "AFTER_DT_PUBLIC",
-    BOGUS_EVIL_DOCTYPE        = "BOGUS_EVIL_DOCTYPE",
-    BOGUS_DOCTYPE             = "BOGUS_DOCTYPE",
-    AFTER_DT_SYSTEM           = "AFTER_DT_SYSTEM",
-    DT_SYSTEM_DQ              = "DT_SYSTEM_DQ",
-    DT_SYSTEM_SQ              = "DT_SYSTEM_SQ",
-    DT_PUBLIC_DQ              = "DT_PUBLIC_DQ",
-    DT_PUBLIC_SQ              = "DT_PUBLIC_SQ",
-    DT_BETWEEN_PUB_SYS        = "DT_BETWEEN_PUB_SYS",
-    AFTER_DT_SYSTEM_IDENT     = "AFTER_DT_SYSTEM_IDENT",
+    BEFORE_DOCTYPE_NAME       = n++,
+    DOCTYPE_NAME              = n++,
+    AFTER_DOCTYPE_NAME        = n++,
+    AFTER_DT_PUBLIC           = n++,
+    BOGUS_EVIL_DOCTYPE        = n++,
+    BOGUS_DOCTYPE             = n++,
+    AFTER_DT_SYSTEM           = n++,
+    DT_SYSTEM_DQ              = n++,
+    DT_SYSTEM_SQ              = n++,
+    DT_PUBLIC_DQ              = n++,
+    DT_PUBLIC_SQ              = n++,
+    DT_BETWEEN_PUB_SYS        = n++,
+    AFTER_DT_SYSTEM_IDENT     = n++,
 
-    SEQUENCE                  = "SEQUENCE",
-    SKIP_NEWLINE              = "SKIP_NEWLINE",
-    XML_DECLARATION           = "XML_DECLARATION",
+    SEQUENCE                  = n++,
+    SKIP_NEWLINE              = n++,
+    XML_DECLARATION           = n++,
 
     REPLACEMENT_CHARACTER     = "\ufffd";
 
@@ -172,7 +175,7 @@ Tokenizer.prototype._consumeSequence = function(seq, SUCCESS, FAILURE){
 	this._sequenceIndex = 0;
 };
 
-_$[SEQUENCE] = function(c){
+_$[SEQUENCE] = function sequence(c){
 	var comp = this._sequence.charAt(this._sequenceIndex);
 	if(c === comp || lowerCaseChar(c) === comp){
 		this._sequenceIndex += 1;
@@ -185,7 +188,7 @@ _$[SEQUENCE] = function(c){
 	}
 };
 
-_$[SKIP_NEWLINE] = function(c){
+_$[SKIP_NEWLINE] = function skipNewline(c){
 	if(c === "\n"){
 		this._sectionStart = this._index + 1;
 	}
@@ -202,7 +205,7 @@ Tokenizer.prototype._emitTextSection = function(){
 
 // 8.2.4.1 Data state
 
-_$[DATA] = function(c){
+_$[DATA] = function data(c){
 	if(this._decodeEntities && c === "&"){
 		this._baseState = this._state;
 		this._state = BEFORE_ENTITY;
@@ -219,7 +222,7 @@ _$[DATA] = function(c){
 
 // 12.2.4.3 RCDATA state
 
-_$[RCDATA_STATE] = function(c){
+_$[RCDATA_STATE] = function rcdataState(c){
 	if(this._decodeEntities && c === "&"){
 		this._baseState = this._state;
 		this._state = BEFORE_ENTITY;
@@ -255,7 +258,7 @@ _$[SCRIPT_DATA_STATE] = textState(SCRIPT_DATA_LT_SIGN_STATE);
 
 // 12.2.4.7 PLAINTEXT state
 
-_$[PLAINTEXT_STATE] = function(c){
+_$[PLAINTEXT_STATE] = function plaintextState(c){
 	if(c === "\0"){
 		// parse error
 		this._cbs.ontext(this._getPartialSection() + REPLACEMENT_CHARACTER);
@@ -268,7 +271,7 @@ _$[PLAINTEXT_STATE] = function(c){
 
 // 8.2.4.8 Tag open state
 
-_$[TAG_OPEN] = function(c){
+_$[TAG_OPEN] = function tagOpen(c){
 	if(c === "!"){
 		this._state = MARKUP_DECLARATION_OPEN;
 		this._sectionStart = this._index + 1;
@@ -297,7 +300,7 @@ _$[TAG_OPEN] = function(c){
 	}
 };
 
-_$[XML_DECLARATION] = function(c){
+_$[XML_DECLARATION] = function xmlDeclaration(c){
 	//TODO fully support xml declarations
 	if(c === ">"){
 		this._cbs.onprocessinginstruction(this._getPartialSection());
@@ -307,7 +310,7 @@ _$[XML_DECLARATION] = function(c){
 
 // 8.2.4.9 End tag open state
 
-_$[END_TAG_OPEN] = function(c){
+_$[END_TAG_OPEN] = function endTagOpen(c){
 	if(this._lowerCaseTagNames && isUpperCaseChar(c)){
 		this._state = IN_CLOSING_TAG_NAME;
 		this._nameBuffer = lowerCaseChar(c);
@@ -330,7 +333,7 @@ _$[END_TAG_OPEN] = function(c){
 
 // 8.2.4.10 Tag name state
 
-_$[TAG_NAME] = function(c){
+_$[TAG_NAME] = function tagName(c){
 	if(whitespace(c)){
 		this._state = BEFORE_ATTRIBUTE_NAME;
 		this._cbs.onopentagname(this._nameBuffer + this._getEndingSection());
@@ -367,7 +370,7 @@ function lessThanSignState(BASE_STATE, NEXT_STATE){
 	};
 }
 
-_$[END_TAG_NAME_STATE] = function(c){
+_$[END_TAG_NAME_STATE] = function endTagNameState(c){
 	if(whitespace(c) || c === "/"){
 		this._state = AFTER_CLOSING_TAG_NAME;
 		this._nameBuffer = this._sequence;
@@ -387,7 +390,7 @@ _$[RCDATA_LT_SIGN_STATE] = lessThanSignState(RCDATA_STATE, END_TAG_NAME_STATE);
 
 //skipped 12.2.4.12 RCDATA end tag open state (using SEQUENCE instead)
 //skipped 12.2.4.13 RCDATA end tag name state
-//_$[RCDATA_END_TAG_NAME_STATE] = endTagNameState;
+//_$[RCDATA_END_TAG_NAME_STATE] = endTagNameState rcdataEndTagNameState;
 
 // 12.2.4.14 RAWTEXT less-than sign state
 
@@ -395,11 +398,11 @@ _$[RAWTEXT_LT_SIGN_STATE] = lessThanSignState(RAWTEXT_STATE, END_TAG_NAME_STATE)
 
 //skipped 12.2.4.15 RAWTEXT end tag open state
 //skipped 12.2.4.16 RAWTEXT end tag name state
-//_$[RAWTEXT_END_TAG_NAME_STATE] = endTagNameState;
+//_$[RAWTEXT_END_TAG_NAME_STATE] = endTagNameState rawtextEndTagNameState;
 
 // 12.2.4.17 Script data less-than sign state
 
-_$[SCRIPT_DATA_LT_SIGN_STATE] = function(c){
+_$[SCRIPT_DATA_LT_SIGN_STATE] = function scriptDataLtSignState(c){
 	if(c === "/"){
 		this._state = SEQUENCE;
 		this._sequenceIndex = 0;
@@ -415,7 +418,7 @@ _$[SCRIPT_DATA_LT_SIGN_STATE] = function(c){
 
 //skipped 12.2.4.18 Script data end tag open state
 //skipped  12.2.4.19 Script data end tag name state
-//_$[SCRIPT_DATA_END_TAG_NAME_STATE] = endTagNameState;
+//_$[SCRIPT_DATA_END_TAG_NAME_STATE] = endTagNameState scriptDataEndTagNameState;
 
 // 12.2.4.20 Script data escape start state
 
@@ -427,7 +430,7 @@ _$[SCRIPT_DATA_ESCAPE_START_DASH_STATE] = ifElseState("-", SCRIPT_DATA_ESCAPED_D
 
 // 8.2.4.22 Script data escaped state
 
-_$[SCRIPT_DATA_ESCAPED_STATE] = function(c){
+_$[SCRIPT_DATA_ESCAPED_STATE] = function scriptDataEscapedState(c){
 	if(c === "<"){
 		this._state = SCRIPT_DATA_ESCAPED_LT_SIGN_STATE;
 	} else if(c === "-"){
@@ -445,10 +448,10 @@ _$[SCRIPT_DATA_ESCAPED_STATE] = function(c){
 // 8.2.4.23 Script data escaped dash state
 
 _$[SCRIPT_DATA_ESCAPED_DASH_STATE] = ifElseState("-", SCRIPT_DATA_ESCAPED_DASH_DASH_STATE, SCRIPT_DATA_ESCAPED_STATE);
- 
+
 // 8.2.4.24 Script data escaped dash dash state
 
-_$[SCRIPT_DATA_ESCAPED_DASH_DASH_STATE] = function(c){
+_$[SCRIPT_DATA_ESCAPED_DASH_DASH_STATE] = function scriptDataEscapedDashDashState(c){
 	if(c === ">"){
 		this._state = SCRIPT_DATA_STATE;
 	} else if(c !== "-"){
@@ -459,7 +462,7 @@ _$[SCRIPT_DATA_ESCAPED_DASH_DASH_STATE] = function(c){
 
 // 8.2.4.25 Script data escaped less-than sign state
 
-_$[SCRIPT_DATA_ESCAPED_LT_SIGN_STATE] = function(c){
+_$[SCRIPT_DATA_ESCAPED_LT_SIGN_STATE] = function scriptDataEscapedLtSignState(c){
 	if(c === "s" || c === "S"){
 		this._state = SEQUENCE;
 		this._sequenceIndex = 1;
@@ -476,7 +479,7 @@ _$[SCRIPT_DATA_ESCAPED_LT_SIGN_STATE] = function(c){
 
 // 8.2.4.26 Script data escaped end tag open state
 
-_$[SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE] = function(c){
+_$[SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE] = function scriptDataEscapedEndTagOpenState(c){
 	this._state = SCRIPT_DATA_ESCAPED_STATE;
 	this._cbs.ontext("<-");
 	this[SCRIPT_DATA_ESCAPED_STATE](c);
@@ -484,7 +487,7 @@ _$[SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE] = function(c){
 
 // 8.2.4.27 Script data escaped end tag name state
 
-_$[SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE] = function(c){
+_$[SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE] = function scriptDataEscapedEndTagNameState(c){
 	if(c === ">"){
 		this._state = DATA;
 		this._cbs.onclosetag(this._sequence);
@@ -499,7 +502,7 @@ _$[SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE] = function(c){
 
 // 8.2.4.28 Script data double escape start state
 
-_$[SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE] = function(c){
+_$[SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE] = function scriptDataDoubleEscapeStartState(c){
 	if(c === ">" || c === "/" || whitespace(c)){
 		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
 	} else {
@@ -510,7 +513,7 @@ _$[SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE] = function(c){
 
 // 8.2.4.29 Script data double escaped state
 
-_$[SCRIPT_DATA_DOUBLE_ESCAPED_STATE] = function(c){
+_$[SCRIPT_DATA_DOUBLE_ESCAPED_STATE] = function scriptDataDoubleEscapedState(c){
 	if(c === "<"){
 		this._state = SEQUENCE;
 		this._sequenceIndex = 0;
@@ -534,7 +537,7 @@ _$[SCRIPT_DATA_DOUBLE_ESCAPED_DASH_STATE] = ifElseState("-", SCRIPT_DATA_DOUBLE_
 
 // 8.2.4.31 Script data double escaped dash dash state
 
-_$[SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE] = function(c){
+_$[SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE] = function scriptDataDoubleEscapedDashDashState(c){
 	if(c === ">"){
 		this._state = SCRIPT_DATA_STATE;
 	} else if(c !== "-"){
@@ -545,7 +548,7 @@ _$[SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE] = function(c){
 
 //skipped 8.2.4.32 Script data double escaped less-than sign state
 
-_$[SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE] = function(c){
+_$[SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE] = function scriptDataDoubleEscapeEndState(c){
 	if(c === ">" || c === "/" || whitespace(c)){
 		this._state = SCRIPT_DATA_ESCAPED_STATE;
 	} else {
@@ -556,7 +559,7 @@ _$[SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE] = function(c){
 
 // 8.2.4.34 Before attribute name state
 
-_$[BEFORE_ATTRIBUTE_NAME] = function(c){
+_$[BEFORE_ATTRIBUTE_NAME] = function beforeAttributeName(c){
 	if(c === ">"){
 		this._state = DATA;
 		this._cbs.onopentagend();
@@ -582,7 +585,7 @@ _$[BEFORE_ATTRIBUTE_NAME] = function(c){
 // 8.2.4.35 Attribute name state
 //FIXME simplified
 
-_$[ATTRIBUTE_NAME] = function(c){
+_$[ATTRIBUTE_NAME] = function attributeName(c){
 	if(c === "=" || c === "/" || c === ">" || whitespace(c)){
 		this._state = AFTER_ATTRIBUTE_NAME;
 		this._nameBuffer += this._getEndingSection();
@@ -596,7 +599,7 @@ _$[ATTRIBUTE_NAME] = function(c){
 
 // 8.2.4.36 After attribute name state
 
-_$[AFTER_ATTRIBUTE_NAME] = function(c){
+_$[AFTER_ATTRIBUTE_NAME] = function afterAttributeName(c){
 	if(c === "="){
 		this._state = BEFORE_ATTRIBUTE_VALUE;
 	} else if(c === "/"){
@@ -629,7 +632,7 @@ _$[AFTER_ATTRIBUTE_NAME] = function(c){
 
 // 8.2.4.37 Before attribute value state
 
-_$[BEFORE_ATTRIBUTE_VALUE] = function(c){
+_$[BEFORE_ATTRIBUTE_VALUE] = function beforeAttributeValue(c){
 	if(c === "\""){
 		this._state = ATTRIBUTE_VALUE_DQ;
 		this._valueBuffer = "";
@@ -684,7 +687,7 @@ _$[ATTRIBUTE_VALUE_SQ] = attributeValueQuotedState("'");
 
 // 8.2.4.40 Attribute value (unquoted) state
 
-_$[ATTRIBUTE_VALUE_NQ] = function(c){
+_$[ATTRIBUTE_VALUE_NQ] = function attributeValueNq(c){
 	if(whitespace(c)){
 		this._state = BEFORE_ATTRIBUTE_NAME;
 		this._cbs.onattribute(this._nameBuffer, this._valueBuffer + this._getEndingSection());
@@ -710,7 +713,7 @@ _$[ATTRIBUTE_VALUE_NQ] = function(c){
 
 // 8.2.4.43 Self-closing start tag state
 
-_$[SELF_CLOSING_START_TAG] = function(c){
+_$[SELF_CLOSING_START_TAG] = function selfClosingStartTag(c){
 	if(c === ">"){
 		this._state = DATA;
 		this._cbs.onselfclosingtag();
@@ -723,7 +726,7 @@ _$[SELF_CLOSING_START_TAG] = function(c){
 
 // 8.2.4.44 Bogus comment state
 
-_$[BOGUS_COMMENT] = function(c){
+_$[BOGUS_COMMENT] = function bogusComment(c){
 	if(c === ">"){
 		this._state = DATA;
 		this._cbs.oncomment(this._getPartialSection());
@@ -739,7 +742,7 @@ _$[BOGUS_COMMENT] = function(c){
 
 // 8.2.4.45 Markup declaration open state
 
-_$[MARKUP_DECLARATION_OPEN] = function(c){
+_$[MARKUP_DECLARATION_OPEN] = function markupDeclarationOpen(c){
 	this._sectionStart = this._index;
 
 	if(c === "-"){
@@ -756,7 +759,7 @@ _$[MARKUP_DECLARATION_OPEN] = function(c){
 	}
 };
 
-_$[BEFORE_COMMENT] = function(c){
+_$[BEFORE_COMMENT] = function beforeComment(c){
 	if(c === "-"){
 		this._state = COMMENT_START;
 		this._sectionStart = this._index + 1;
@@ -767,7 +770,7 @@ _$[BEFORE_COMMENT] = function(c){
 
 // 8.2.4.46 Comment start state
 
-_$[COMMENT_START] = function(c){
+_$[COMMENT_START] = function commentStart(c){
 	if(c === "-"){
 		this._state = COMMENT_START_DASH;
 	} else if(c === ">"){
@@ -783,7 +786,7 @@ _$[COMMENT_START] = function(c){
 
 // 8.2.4.47 Comment start dash state
 
-_$[COMMENT_START_DASH] = function(c){
+_$[COMMENT_START_DASH] = function commentStartDash(c){
 	if(c === "-"){
 		this._state = COMMENT_END;
 	} else if(c === ">"){
@@ -799,7 +802,7 @@ _$[COMMENT_START_DASH] = function(c){
 
 // 8.2.4.48 Comment state
 
-_$[COMMENT] = function(c){
+_$[COMMENT] = function comment(c){
 	if(c === "-"){
 		this._state = COMMENT_END_DASH;
 	} else if(c === "\0"){
@@ -818,7 +821,7 @@ _$[COMMENT_END_DASH] = ifElseState("-", COMMENT_END, COMMENT);
 
 // 8.2.4.50 Comment end state
 
-_$[COMMENT_END] = function(c){
+_$[COMMENT_END] = function commentEnd(c){
 	if(c === ">"){
 		//remove 2 trailing chars
 		this._state = DATA;
@@ -837,7 +840,7 @@ _$[COMMENT_END] = function(c){
 
 // 8.2.4.51 Comment end bang state
 
-_$[COMMENT_END_BANG] = function(c){
+_$[COMMENT_END_BANG] = function commentEndBang(c){
 	if(c === ">"){
 		//remove trailing --!
 		this._state = DATA;
@@ -852,7 +855,7 @@ _$[COMMENT_END_BANG] = function(c){
 	}
 };
 
-_$[IN_CLOSING_TAG_NAME] = function(c){
+_$[IN_CLOSING_TAG_NAME] = function inClosingTagName(c){
 	if(whitespace(c) || c === "/"){
 		this._state = AFTER_CLOSING_TAG_NAME;
 		this._nameBuffer += this._getEndingSection();
@@ -866,7 +869,7 @@ _$[IN_CLOSING_TAG_NAME] = function(c){
 	}
 };
 
-_$[AFTER_CLOSING_TAG_NAME] = function(c){
+_$[AFTER_CLOSING_TAG_NAME] = function afterClosingTagName(c){
 	//skip everything until ">"
 	if(c === ">"){
 		this._state = DATA;
@@ -878,7 +881,7 @@ _$[AFTER_CLOSING_TAG_NAME] = function(c){
 // Ignored: 8.2.4.52 DOCTYPE state - parse error when whitespace missing (<!DOCTYPEfoo>)
 
 // 8.2.4.53 Before DOCTYPE name state
-_$[BEFORE_DOCTYPE_NAME] = function(c){
+_$[BEFORE_DOCTYPE_NAME] = function beforeDoctypeName(c){
 	if(whitespace(c));
 	else if(c === ">"){
 		this._state = DATA;
@@ -901,7 +904,7 @@ _$[BEFORE_DOCTYPE_NAME] = function(c){
 };
 
 // 8.2.4.54 DOCTYPE name state
-_$[DOCTYPE_NAME] = function(c){
+_$[DOCTYPE_NAME] = function doctypeName(c){
 	if(whitespace(c)){
 		this._nameBuffer += this._getEndingSection();
 		this._state = AFTER_DOCTYPE_NAME;
@@ -917,7 +920,7 @@ _$[DOCTYPE_NAME] = function(c){
 };
 
 // 8.2.4.55 After DOCTYPE name state
-_$[AFTER_DOCTYPE_NAME] = function(c){
+_$[AFTER_DOCTYPE_NAME] = function afterDoctypeName(c){
 	if(c === ">"){
 		this._state = DATA;
 		this._cbs.ondoctype(this._nameBuffer, null, null, true);
@@ -935,7 +938,7 @@ _$[AFTER_DOCTYPE_NAME] = function(c){
 // 8.2.4.56 After DOCTYPE public keyword state
 // Ignored 8.2.4.57 Before DOCTYPE public identifier state
 
-_$[AFTER_DT_PUBLIC] = function(c){
+_$[AFTER_DT_PUBLIC] = function afterDtPublic(c){
 	if(whitespace(c));
 	else if(c === ">"){
 		this._state = DATA;
@@ -984,7 +987,7 @@ _$[DT_PUBLIC_SQ] = doctypePublicQuotedState("'");
 // Ignored 8.2.4.60 After DOCTYPE public identifier state
 // 8.2.4.61 Between DOCTYPE public and system identifiers state
 
-_$[DT_BETWEEN_PUB_SYS] = function(c){
+_$[DT_BETWEEN_PUB_SYS] = function dtBetweenPubSys(c){
 	if(whitespace(c));
 	else if(c === ">"){
 		this._state = DATA;
@@ -1007,7 +1010,7 @@ _$[DT_BETWEEN_PUB_SYS] = function(c){
 // 8.2.4.62 After DOCTYPE system keyword state
 // Ignored 8.2.4.63 Before DOCTYPE system identifier state
 
-_$[AFTER_DT_SYSTEM] = function(c){
+_$[AFTER_DT_SYSTEM] = function afterDtSystem(c){
 	if(whitespace(c));
 	else if(c === ">"){
 		this._state = DATA;
@@ -1055,7 +1058,7 @@ _$[DT_SYSTEM_SQ] = doctypeSystemQuotedState("'");
 
 // 8.2.4.66 After DOCTYPE system identifier state
 
-_$[AFTER_DT_SYSTEM_IDENT] = function(c){
+_$[AFTER_DT_SYSTEM_IDENT] = function afterDtSystemIdent(c){
 	if(!whitespace(c)){
 		this._state = BOGUS_DOCTYPE;
 		this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, true);
@@ -1065,7 +1068,7 @@ _$[AFTER_DT_SYSTEM_IDENT] = function(c){
 };
 
 //helper for sequences
-_$[BOGUS_EVIL_DOCTYPE] = function(c){
+_$[BOGUS_EVIL_DOCTYPE] = function bogusEvilDoctype(c){
 	this._state = BOGUS_DOCTYPE;
 	this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, false);
 	this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
@@ -1074,7 +1077,7 @@ _$[BOGUS_EVIL_DOCTYPE] = function(c){
 
 // 8.2.4.67 Bogus DOCTYPE state
 
-_$[BOGUS_DOCTYPE] = function(c){
+_$[BOGUS_DOCTYPE] = function bogusDoctype(c){
 	if(c === ">"){
 		this._state = DATA;
 		this._sectionStart = this._index + 1;
@@ -1083,7 +1086,7 @@ _$[BOGUS_DOCTYPE] = function(c){
 
 // 8.2.4.68 CDATA section state
 
-_$[BEFORE_CDATA] = function(c){
+_$[BEFORE_CDATA] = function beforeCdata(c){
 	if(c === "["){
 		this._state = IN_CDATA;
 		this._sectionStart = this._index + 1;
@@ -1096,7 +1099,7 @@ _$[BEFORE_CDATA] = function(c){
 _$[IN_CDATA] = characterState("]", AFTER_CDATA_1);
 _$[AFTER_CDATA_1] = ifElseState("]", AFTER_CDATA_2, IN_CDATA);
 
-_$[AFTER_CDATA_2] = function(c){
+_$[AFTER_CDATA_2] = function afterCdata2(c){
 	if(c === ">"){
 		//remove 2 trailing chars
 		this._state = DATA;
@@ -1108,7 +1111,7 @@ _$[AFTER_CDATA_2] = function(c){
 	//else: stay in AFTER_CDATA_2 (`]]]>`)
 };
 
-_$[BEFORE_ENTITY] = function(c){
+_$[BEFORE_ENTITY] = function beforeEntity(c){
 	if(c === "#"){
 		this._state = BEFORE_NUMERIC_ENTITY;
 	} else {
@@ -1117,7 +1120,7 @@ _$[BEFORE_ENTITY] = function(c){
 	}
 };
 
-_$[BEFORE_NUMERIC_ENTITY] = function(c){
+_$[BEFORE_NUMERIC_ENTITY] = function beforeNumericEntity(c){
 	if(c === "x" || c === "X"){
 		this._state = IN_HEX_ENTITY;
 	} else {
@@ -1126,7 +1129,7 @@ _$[BEFORE_NUMERIC_ENTITY] = function(c){
 	}
 };
 
-_$[IN_NAMED_ENTITY] = function(c){
+_$[IN_NAMED_ENTITY] = function inNamedEntity(c){
 	if(c === ";"){
 		if(this._sectionStart + 1 !== this._index){
 			this._parseNamedEntityStrict();
@@ -1157,7 +1160,7 @@ _$[IN_NAMED_ENTITY] = function(c){
 	}
 };
 
-_$[IN_NUMERIC_ENTITY] = function(c){
+_$[IN_NUMERIC_ENTITY] = function inNumericEntity(c){
 	if(c === ";"){
 		this._state = this._baseState;
 
@@ -1178,7 +1181,7 @@ _$[IN_NUMERIC_ENTITY] = function(c){
 	}
 };
 
-_$[IN_HEX_ENTITY] = function(c){
+_$[IN_HEX_ENTITY] = function inHexEntity(c){
 	if(c === ";"){
 		this._state = this._baseState;
 
