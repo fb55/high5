@@ -56,7 +56,10 @@ const
     END_TAG_NAME_STATE        = n++,
 
     RCDATA_LT_SIGN_STATE      = n++,
+    RCDATA_END_TAG_NAME_STATE = n++,
     RAWTEXT_LT_SIGN_STATE     = n++,
+    RAWTEXT_END_TAG_NAME_STATE= n++,
+    SCRIPT_DATA_END_TAG_NAME_STATE = n++,
 
     SCRIPT_DATA_LT_SIGN_STATE = n++,
     SCRIPT_DATA_ESCAPE_START_STATE = n++,
@@ -121,19 +124,13 @@ function isAttributeState(state){
 	return state === ATTRIBUTE_VALUE_NQ || state === ATTRIBUTE_VALUE_SQ || state === ATTRIBUTE_VALUE_DQ;
 }
 
-function characterState(char, SUCCESS){
-	return function(c){
-		if(c === char) this._state = SUCCESS;
-	};
-}
-
 function ifElseState(char, SUCCESS, FAILURE){
 	return function(c){
 		if(c === char){
 			this._state = SUCCESS;
 		} else {
 			 this._state = FAILURE;
-			 this[FAILURE](c);
+			 this._consumeCharacter(FAILURE, c);
 		}
 	};
 }
@@ -165,8 +162,6 @@ function Tokenizer(cbs, options){
 	this._systemBuffer = null;
 }
 
-var _$ = Tokenizer.prototype;
-
 Tokenizer.prototype._consumeSequence = function(seq, SUCCESS, FAILURE){
 	this._sequence = seq;
 	this._nextState = SUCCESS;
@@ -175,7 +170,7 @@ Tokenizer.prototype._consumeSequence = function(seq, SUCCESS, FAILURE){
 	this._sequenceIndex = 0;
 };
 
-_$[SEQUENCE] = function sequence(c){
+Tokenizer.prototype._sequenceState = function(c){
 	var comp = this._sequence.charAt(this._sequenceIndex);
 	if(c === comp || lowerCaseChar(c) === comp){
 		this._sequenceIndex += 1;
@@ -184,16 +179,16 @@ _$[SEQUENCE] = function sequence(c){
 		}
 	} else {
 		this._state = this._baseState;
-		this[this._baseState](c);
+		this._consumeCharacter(this._baseState, c);
 	}
 };
 
-_$[SKIP_NEWLINE] = function skipNewline(c){
+Tokenizer.prototype._skipNewlineState = function(c){
 	if(c === "\n"){
 		this._sectionStart = this._index + 1;
 	}
 	this._state = this._baseState;
-	this[this._baseState](c);
+	this._consumeCharacter(this._baseState, c);
 };
 
 Tokenizer.prototype._emitTextSection = function(){
@@ -205,7 +200,7 @@ Tokenizer.prototype._emitTextSection = function(){
 
 // 8.2.4.1 Data state
 
-_$[DATA] = function data(c){
+Tokenizer.prototype._dataState = function(c){
 	if(this._decodeEntities && c === "&"){
 		this._baseState = this._state;
 		this._state = BEFORE_ENTITY;
@@ -222,7 +217,7 @@ _$[DATA] = function data(c){
 
 // 12.2.4.3 RCDATA state
 
-_$[RCDATA_STATE] = function rcdataState(c){
+Tokenizer.prototype._rcdataState = function(c){
 	if(this._decodeEntities && c === "&"){
 		this._baseState = this._state;
 		this._state = BEFORE_ENTITY;
@@ -231,7 +226,7 @@ _$[RCDATA_STATE] = function rcdataState(c){
 		this._state = RCDATA_LT_SIGN_STATE;
 		this._emitTextSection();
 	} else {
-		this[PLAINTEXT_STATE](c);
+		this._consumeCharacter(PLAINTEXT_STATE, c);
 	}
 };
 
@@ -241,24 +236,24 @@ function textState(LT_SIGN_STATE){
 			this._state = LT_SIGN_STATE;
 			this._emitTextSection();
 		} else {
-			this[PLAINTEXT_STATE](c);
+			this._consumeCharacter(PLAINTEXT_STATE, c);
 		}
 	};
 }
 
 // 12.2.4.5 RAWTEXT state
 
-_$[RAWTEXT_STATE] = textState(RAWTEXT_LT_SIGN_STATE);
+Tokenizer.prototype._rawtextState = textState(RAWTEXT_LT_SIGN_STATE);
 
 
 // 12.2.4.6 Script data state
 
-_$[SCRIPT_DATA_STATE] = textState(SCRIPT_DATA_LT_SIGN_STATE);
+Tokenizer.prototype._scriptDataState = textState(SCRIPT_DATA_LT_SIGN_STATE);
 
 
 // 12.2.4.7 PLAINTEXT state
 
-_$[PLAINTEXT_STATE] = function plaintextState(c){
+Tokenizer.prototype._plaintextState = function(c){
 	if(c === "\0"){
 		// parse error
 		this._cbs.ontext(this._getPartialSection() + REPLACEMENT_CHARACTER);
@@ -271,7 +266,7 @@ _$[PLAINTEXT_STATE] = function plaintextState(c){
 
 // 8.2.4.8 Tag open state
 
-_$[TAG_OPEN] = function tagOpen(c){
+Tokenizer.prototype._tagOpenState = function(c){
 	if(c === "!"){
 		this._state = MARKUP_DECLARATION_OPEN;
 		this._sectionStart = this._index + 1;
@@ -296,11 +291,11 @@ _$[TAG_OPEN] = function tagOpen(c){
 	} else {
 		// parse error
 		this._state = DATA;
-		this[DATA](c);
+		this._consumeCharacter(DATA, c);
 	}
 };
 
-_$[XML_DECLARATION] = function xmlDeclaration(c){
+Tokenizer.prototype._xmlDeclarationState = function(c){
 	//TODO fully support xml declarations
 	if(c === ">"){
 		this._cbs.onprocessinginstruction(this._getPartialSection());
@@ -310,7 +305,7 @@ _$[XML_DECLARATION] = function xmlDeclaration(c){
 
 // 8.2.4.9 End tag open state
 
-_$[END_TAG_OPEN] = function endTagOpen(c){
+Tokenizer.prototype._endTagOpenState = function(c){
 	if(this._lowerCaseTagNames && isUpperCaseChar(c)){
 		this._state = IN_CLOSING_TAG_NAME;
 		this._nameBuffer = lowerCaseChar(c);
@@ -327,13 +322,13 @@ _$[END_TAG_OPEN] = function endTagOpen(c){
 		// parse error
 		this._state = BOGUS_COMMENT;
 		this._sectionStart = this._index;
-		this[BOGUS_COMMENT](c);
+		this._consumeCharacter(BOGUS_COMMENT, c);
 	}
 };
 
 // 8.2.4.10 Tag name state
 
-_$[TAG_NAME] = function tagName(c){
+Tokenizer.prototype._tagNameState = function(c){
 	if(whitespace(c)){
 		this._state = BEFORE_ATTRIBUTE_NAME;
 		this._cbs.onopentagname(this._nameBuffer + this._getEndingSection());
@@ -365,12 +360,12 @@ function lessThanSignState(BASE_STATE, NEXT_STATE){
 			this._baseState = BASE_STATE;
 		} else {
 			this._state = BASE_STATE;
-			this[BASE_STATE](c);
+			this._consumeCharacter(BASE_STATE, c);
 		}
 	};
 }
 
-_$[END_TAG_NAME_STATE] = function endTagNameState(c){
+Tokenizer.prototype._endTagNameState = function(c){
 	if(whitespace(c) || c === "/"){
 		this._state = AFTER_CLOSING_TAG_NAME;
 		this._nameBuffer = this._sequence;
@@ -380,29 +375,29 @@ _$[END_TAG_NAME_STATE] = function endTagNameState(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = this._baseState;
-		this[this._baseState](c);
+		this._consumeCharacter(this._baseState, c);
 	}
 };
 
 // 12.2.4.11 RCDATA less-than sign state
 
-_$[RCDATA_LT_SIGN_STATE] = lessThanSignState(RCDATA_STATE, END_TAG_NAME_STATE);
+Tokenizer.prototype._rcdataLtSignState = lessThanSignState(RCDATA_STATE, END_TAG_NAME_STATE);
 
 //skipped 12.2.4.12 RCDATA end tag open state (using SEQUENCE instead)
 //skipped 12.2.4.13 RCDATA end tag name state
-//_$[RCDATA_END_TAG_NAME_STATE] = endTagNameState rcdataEndTagNameState;
+//Tokenizer.prototype._rcdataEndTagNameState = endTagNameState rcdataEndTagNameState;
 
 // 12.2.4.14 RAWTEXT less-than sign state
 
-_$[RAWTEXT_LT_SIGN_STATE] = lessThanSignState(RAWTEXT_STATE, END_TAG_NAME_STATE);
+Tokenizer.prototype._rawtextLtSignState = lessThanSignState(RAWTEXT_STATE, END_TAG_NAME_STATE);
 
 //skipped 12.2.4.15 RAWTEXT end tag open state
 //skipped 12.2.4.16 RAWTEXT end tag name state
-//_$[RAWTEXT_END_TAG_NAME_STATE] = endTagNameState rawtextEndTagNameState;
+//Tokenizer.prototype._rawtextEndTagNameState = endTagNameState rawtextEndTagNameState;
 
 // 12.2.4.17 Script data less-than sign state
 
-_$[SCRIPT_DATA_LT_SIGN_STATE] = function scriptDataLtSignState(c){
+Tokenizer.prototype._scriptDataLtSignState = function(c){
 	if(c === "/"){
 		this._state = SEQUENCE;
 		this._sequenceIndex = 0;
@@ -412,25 +407,25 @@ _$[SCRIPT_DATA_LT_SIGN_STATE] = function scriptDataLtSignState(c){
 		this._state = SCRIPT_DATA_ESCAPE_START_STATE;
 	} else {
 		this._state = SCRIPT_DATA_STATE;
-		this[SCRIPT_DATA_STATE](c);
+		this._consumeCharacter(SCRIPT_DATA_STATE, c);
 	}
 };
 
 //skipped 12.2.4.18 Script data end tag open state
 //skipped  12.2.4.19 Script data end tag name state
-//_$[SCRIPT_DATA_END_TAG_NAME_STATE] = endTagNameState scriptDataEndTagNameState;
+//Tokenizer.prototype._scriptDataEndTagNameState = endTagNameState scriptDataEndTagNameState;
 
 // 12.2.4.20 Script data escape start state
 
-_$[SCRIPT_DATA_ESCAPE_START_STATE] = ifElseState("-", SCRIPT_DATA_ESCAPE_START_DASH_STATE, SCRIPT_DATA_STATE);
+Tokenizer.prototype._scriptDataEscapeStartState = ifElseState("-", SCRIPT_DATA_ESCAPE_START_DASH_STATE, SCRIPT_DATA_STATE);
 
 // 12.2.4.21 Script data escape start dash state
 
-_$[SCRIPT_DATA_ESCAPE_START_DASH_STATE] = ifElseState("-", SCRIPT_DATA_ESCAPED_DASH_DASH_STATE, SCRIPT_DATA_STATE);
+Tokenizer.prototype._scriptDataEscapeStartDashState = ifElseState("-", SCRIPT_DATA_ESCAPED_DASH_DASH_STATE, SCRIPT_DATA_STATE);
 
 // 8.2.4.22 Script data escaped state
 
-_$[SCRIPT_DATA_ESCAPED_STATE] = function scriptDataEscapedState(c){
+Tokenizer.prototype._scriptDataEscapedState = function(c){
 	if(c === "<"){
 		this._state = SCRIPT_DATA_ESCAPED_LT_SIGN_STATE;
 	} else if(c === "-"){
@@ -447,22 +442,22 @@ _$[SCRIPT_DATA_ESCAPED_STATE] = function scriptDataEscapedState(c){
 
 // 8.2.4.23 Script data escaped dash state
 
-_$[SCRIPT_DATA_ESCAPED_DASH_STATE] = ifElseState("-", SCRIPT_DATA_ESCAPED_DASH_DASH_STATE, SCRIPT_DATA_ESCAPED_STATE);
+Tokenizer.prototype._scriptDataEscapedDashState = ifElseState("-", SCRIPT_DATA_ESCAPED_DASH_DASH_STATE, SCRIPT_DATA_ESCAPED_STATE);
 
 // 8.2.4.24 Script data escaped dash dash state
 
-_$[SCRIPT_DATA_ESCAPED_DASH_DASH_STATE] = function scriptDataEscapedDashDashState(c){
+Tokenizer.prototype._scriptDataEscapedDashDashState = function(c){
 	if(c === ">"){
 		this._state = SCRIPT_DATA_STATE;
 	} else if(c !== "-"){
 		this._state = SCRIPT_DATA_ESCAPED_STATE;
-		this[SCRIPT_DATA_ESCAPED_STATE](c);
+		this._consumeCharacter(SCRIPT_DATA_ESCAPED_STATE, c);
 	}
 };
 
 // 8.2.4.25 Script data escaped less-than sign state
 
-_$[SCRIPT_DATA_ESCAPED_LT_SIGN_STATE] = function scriptDataEscapedLtSignState(c){
+Tokenizer.prototype._scriptDataEscapedLtSignState = function(c){
 	if(c === "s" || c === "S"){
 		this._state = SEQUENCE;
 		this._sequenceIndex = 1;
@@ -479,15 +474,15 @@ _$[SCRIPT_DATA_ESCAPED_LT_SIGN_STATE] = function scriptDataEscapedLtSignState(c)
 
 // 8.2.4.26 Script data escaped end tag open state
 
-_$[SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE] = function scriptDataEscapedEndTagOpenState(c){
+Tokenizer.prototype._scriptDataEscapedEndTagOpenState = function(c){
 	this._state = SCRIPT_DATA_ESCAPED_STATE;
 	this._cbs.ontext("<-");
-	this[SCRIPT_DATA_ESCAPED_STATE](c);
+	this._consumeCharacter(SCRIPT_DATA_ESCAPED_STATE, c);
 };
 
 // 8.2.4.27 Script data escaped end tag name state
 
-_$[SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE] = function scriptDataEscapedEndTagNameState(c){
+Tokenizer.prototype._scriptDataEscapedEndTagNameState = function(c){
 	if(c === ">"){
 		this._state = DATA;
 		this._cbs.onclosetag(this._sequence);
@@ -496,24 +491,24 @@ _$[SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE] = function scriptDataEscapedEndTagNam
 		this._nameBuffer = this._sequence;
 		this._state = AFTER_CLOSING_TAG_NAME;
 	} else {
-		this[SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE](c);
+		this._consumeCharacter(SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE, c);
 	}
 };
 
 // 8.2.4.28 Script data double escape start state
 
-_$[SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE] = function scriptDataDoubleEscapeStartState(c){
+Tokenizer.prototype._scriptDataDoubleEscapeStartState = function(c){
 	if(c === ">" || c === "/" || whitespace(c)){
 		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
 	} else {
 		this._state = SCRIPT_DATA_ESCAPED_STATE;
-		this[SCRIPT_DATA_ESCAPED_STATE](c);
+		this._consumeCharacter(SCRIPT_DATA_ESCAPED_STATE, c);
 	}
 };
 
 // 8.2.4.29 Script data double escaped state
 
-_$[SCRIPT_DATA_DOUBLE_ESCAPED_STATE] = function scriptDataDoubleEscapedState(c){
+Tokenizer.prototype._scriptDataDoubleEscapedState = function(c){
 	if(c === "<"){
 		this._state = SEQUENCE;
 		this._sequenceIndex = 0;
@@ -533,33 +528,33 @@ _$[SCRIPT_DATA_DOUBLE_ESCAPED_STATE] = function scriptDataDoubleEscapedState(c){
 
 // 8.2.4.30 Script data double escaped dash state
 
-_$[SCRIPT_DATA_DOUBLE_ESCAPED_DASH_STATE] = ifElseState("-", SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE, SCRIPT_DATA_DOUBLE_ESCAPED_STATE);
+Tokenizer.prototype._scriptDataDoubleEscapedDashState = ifElseState("-", SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE, SCRIPT_DATA_DOUBLE_ESCAPED_STATE);
 
 // 8.2.4.31 Script data double escaped dash dash state
 
-_$[SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE] = function scriptDataDoubleEscapedDashDashState(c){
+Tokenizer.prototype._scriptDataDoubleEscapedDashDashState = function(c){
 	if(c === ">"){
 		this._state = SCRIPT_DATA_STATE;
 	} else if(c !== "-"){
 		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
-		this[SCRIPT_DATA_DOUBLE_ESCAPED_STATE](c);
+		this._consumeCharacter(SCRIPT_DATA_DOUBLE_ESCAPED_STATE, c);
 	}
 };
 
 //skipped 8.2.4.32 Script data double escaped less-than sign state
 
-_$[SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE] = function scriptDataDoubleEscapeEndState(c){
+Tokenizer.prototype._scriptDataDoubleEscapeEndState = function(c){
 	if(c === ">" || c === "/" || whitespace(c)){
 		this._state = SCRIPT_DATA_ESCAPED_STATE;
 	} else {
 		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
-		this[SCRIPT_DATA_DOUBLE_ESCAPED_STATE](c);
+		this._consumeCharacter(SCRIPT_DATA_DOUBLE_ESCAPED_STATE, c);
 	}
 };
 
 // 8.2.4.34 Before attribute name state
 
-_$[BEFORE_ATTRIBUTE_NAME] = function beforeAttributeName(c){
+Tokenizer.prototype._beforeAttributeNameState = function(c){
 	if(c === ">"){
 		this._state = DATA;
 		this._cbs.onopentagend();
@@ -585,11 +580,11 @@ _$[BEFORE_ATTRIBUTE_NAME] = function beforeAttributeName(c){
 // 8.2.4.35 Attribute name state
 //FIXME simplified
 
-_$[ATTRIBUTE_NAME] = function attributeName(c){
+Tokenizer.prototype._attributeNameState = function(c){
 	if(c === "=" || c === "/" || c === ">" || whitespace(c)){
 		this._state = AFTER_ATTRIBUTE_NAME;
 		this._nameBuffer += this._getEndingSection();
-		this[AFTER_ATTRIBUTE_NAME](c);
+		this._consumeCharacter(AFTER_ATTRIBUTE_NAME, c);
 	} else if(c === "\0"){
 		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
 	} else if(this._lowerCaseAttributeNames && isUpperCaseChar(c)){
@@ -599,7 +594,7 @@ _$[ATTRIBUTE_NAME] = function attributeName(c){
 
 // 8.2.4.36 After attribute name state
 
-_$[AFTER_ATTRIBUTE_NAME] = function afterAttributeName(c){
+Tokenizer.prototype._afterAttributeNameState = function(c){
 	if(c === "="){
 		this._state = BEFORE_ATTRIBUTE_VALUE;
 	} else if(c === "/"){
@@ -632,7 +627,7 @@ _$[AFTER_ATTRIBUTE_NAME] = function afterAttributeName(c){
 
 // 8.2.4.37 Before attribute value state
 
-_$[BEFORE_ATTRIBUTE_VALUE] = function beforeAttributeValue(c){
+Tokenizer.prototype._beforeAttributeValueState = function(c){
 	if(c === "\""){
 		this._state = ATTRIBUTE_VALUE_DQ;
 		this._valueBuffer = "";
@@ -653,12 +648,12 @@ _$[BEFORE_ATTRIBUTE_VALUE] = function beforeAttributeValue(c){
 		this._state = ATTRIBUTE_VALUE_NQ;
 		this._valueBuffer = "";
 		this._sectionStart = this._index;
-		this[ATTRIBUTE_VALUE_NQ](c);
+		this._consumeCharacter(ATTRIBUTE_VALUE_NQ, c);
 	}
 };
 
 function attributeValueQuotedState(QUOT){
-	return function(c){
+	return function attrivValQuoted(c){
 		if(c === QUOT){
 			this._state = BEFORE_ATTRIBUTE_NAME;
 			this._cbs.onattribute(this._nameBuffer, this._valueBuffer + this._getEndingSection());
@@ -682,12 +677,12 @@ function attributeValueQuotedState(QUOT){
 // 8.2.4.38 Attribute value (double-quoted) state
 // 8.2.4.39 Attribute value (single-quoted) state
 
-_$[ATTRIBUTE_VALUE_DQ] = attributeValueQuotedState("\"");
-_$[ATTRIBUTE_VALUE_SQ] = attributeValueQuotedState("'");
+Tokenizer.prototype._attributeValueDqState = attributeValueQuotedState("\"");
+Tokenizer.prototype._attributeValueSqState = attributeValueQuotedState("'");
 
 // 8.2.4.40 Attribute value (unquoted) state
 
-_$[ATTRIBUTE_VALUE_NQ] = function attributeValueNq(c){
+Tokenizer.prototype._attributeValueNqState = function(c){
 	if(whitespace(c)){
 		this._state = BEFORE_ATTRIBUTE_NAME;
 		this._cbs.onattribute(this._nameBuffer, this._valueBuffer + this._getEndingSection());
@@ -713,20 +708,20 @@ _$[ATTRIBUTE_VALUE_NQ] = function attributeValueNq(c){
 
 // 8.2.4.43 Self-closing start tag state
 
-_$[SELF_CLOSING_START_TAG] = function selfClosingStartTag(c){
+Tokenizer.prototype._selfClosingStartTagState = function(c){
 	if(c === ">"){
 		this._state = DATA;
 		this._cbs.onselfclosingtag();
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = BEFORE_ATTRIBUTE_NAME;
-		this[BEFORE_ATTRIBUTE_NAME](c);
+		this._consumeCharacter(BEFORE_ATTRIBUTE_NAME, c);
 	}
 };
 
 // 8.2.4.44 Bogus comment state
 
-_$[BOGUS_COMMENT] = function bogusComment(c){
+Tokenizer.prototype._bogusCommentState = function(c){
 	if(c === ">"){
 		this._state = DATA;
 		this._cbs.oncomment(this._getPartialSection());
@@ -742,7 +737,7 @@ _$[BOGUS_COMMENT] = function bogusComment(c){
 
 // 8.2.4.45 Markup declaration open state
 
-_$[MARKUP_DECLARATION_OPEN] = function markupDeclarationOpen(c){
+Tokenizer.prototype._markupDeclarationOpenState = function(c){
 	this._sectionStart = this._index;
 
 	if(c === "-"){
@@ -755,11 +750,11 @@ _$[MARKUP_DECLARATION_OPEN] = function markupDeclarationOpen(c){
 		this._state = XML_DECLARATION;
 	} else {
 		this._state = BOGUS_COMMENT;
-		this[BOGUS_COMMENT](c);
+		this._consumeCharacter(BOGUS_COMMENT, c);
 	}
 };
 
-_$[BEFORE_COMMENT] = function beforeComment(c){
+Tokenizer.prototype._beforeCommentState = function(c){
 	if(c === "-"){
 		this._state = COMMENT_START;
 		this._sectionStart = this._index + 1;
@@ -770,7 +765,7 @@ _$[BEFORE_COMMENT] = function beforeComment(c){
 
 // 8.2.4.46 Comment start state
 
-_$[COMMENT_START] = function commentStart(c){
+Tokenizer.prototype._commentStartState = function(c){
 	if(c === "-"){
 		this._state = COMMENT_START_DASH;
 	} else if(c === ">"){
@@ -780,13 +775,13 @@ _$[COMMENT_START] = function commentStart(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = COMMENT;
-		this[COMMENT](c);
+		this._consumeCharacter(COMMENT, c);
 	}
 };
 
 // 8.2.4.47 Comment start dash state
 
-_$[COMMENT_START_DASH] = function commentStartDash(c){
+Tokenizer.prototype._commentStartDashState = function(c){
 	if(c === "-"){
 		this._state = COMMENT_END;
 	} else if(c === ">"){
@@ -796,13 +791,13 @@ _$[COMMENT_START_DASH] = function commentStartDash(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = COMMENT;
-		this[COMMENT](c);
+		this._consumeCharacter(COMMENT, c);
 	}
 };
 
 // 8.2.4.48 Comment state
 
-_$[COMMENT] = function comment(c){
+Tokenizer.prototype._commentState = function(c){
 	if(c === "-"){
 		this._state = COMMENT_END_DASH;
 	} else if(c === "\0"){
@@ -817,11 +812,11 @@ _$[COMMENT] = function comment(c){
 
 // 8.2.4.49 Comment end dash state
 
-_$[COMMENT_END_DASH] = ifElseState("-", COMMENT_END, COMMENT);
+Tokenizer.prototype._commentEndDashState = ifElseState("-", COMMENT_END, COMMENT);
 
 // 8.2.4.50 Comment end state
 
-_$[COMMENT_END] = function commentEnd(c){
+Tokenizer.prototype._commentEndState = function(c){
 	if(c === ">"){
 		//remove 2 trailing chars
 		this._state = DATA;
@@ -833,14 +828,14 @@ _$[COMMENT_END] = function commentEnd(c){
 		this._state = COMMENT_END_BANG;
 	} else if(c !== "-"){
 		this._state = COMMENT;
-		this[COMMENT](c);
+		this._consumeCharacter(COMMENT, c);
 	}
 	// else: parse error, stay in COMMENT_END (`--->`)
 };
 
 // 8.2.4.51 Comment end bang state
 
-_$[COMMENT_END_BANG] = function commentEndBang(c){
+Tokenizer.prototype._commentEndBangState = function(c){
 	if(c === ">"){
 		//remove trailing --!
 		this._state = DATA;
@@ -851,11 +846,11 @@ _$[COMMENT_END_BANG] = function commentEndBang(c){
 		this._state = COMMENT_END_DASH;
 	} else {
 		this._state = COMMENT;
-		this[COMMENT](c);
+		this._consumeCharacter(COMMENT, c);
 	}
 };
 
-_$[IN_CLOSING_TAG_NAME] = function inClosingTagName(c){
+Tokenizer.prototype._inClosingTagNameState = function(c){
 	if(whitespace(c) || c === "/"){
 		this._state = AFTER_CLOSING_TAG_NAME;
 		this._nameBuffer += this._getEndingSection();
@@ -869,7 +864,7 @@ _$[IN_CLOSING_TAG_NAME] = function inClosingTagName(c){
 	}
 };
 
-_$[AFTER_CLOSING_TAG_NAME] = function afterClosingTagName(c){
+Tokenizer.prototype._afterClosingTagNameState = function(c){
 	//skip everything until ">"
 	if(c === ">"){
 		this._state = DATA;
@@ -881,7 +876,7 @@ _$[AFTER_CLOSING_TAG_NAME] = function afterClosingTagName(c){
 // Ignored: 8.2.4.52 DOCTYPE state - parse error when whitespace missing (<!DOCTYPEfoo>)
 
 // 8.2.4.53 Before DOCTYPE name state
-_$[BEFORE_DOCTYPE_NAME] = function beforeDoctypeName(c){
+Tokenizer.prototype._beforeDoctypeNameState = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
 		this._state = DATA;
@@ -904,7 +899,7 @@ _$[BEFORE_DOCTYPE_NAME] = function beforeDoctypeName(c){
 };
 
 // 8.2.4.54 DOCTYPE name state
-_$[DOCTYPE_NAME] = function doctypeName(c){
+Tokenizer.prototype._doctypeNameState = function(c){
 	if(whitespace(c)){
 		this._nameBuffer += this._getEndingSection();
 		this._state = AFTER_DOCTYPE_NAME;
@@ -920,7 +915,7 @@ _$[DOCTYPE_NAME] = function doctypeName(c){
 };
 
 // 8.2.4.55 After DOCTYPE name state
-_$[AFTER_DOCTYPE_NAME] = function afterDoctypeName(c){
+Tokenizer.prototype._afterDoctypeNameState = function(c){
 	if(c === ">"){
 		this._state = DATA;
 		this._cbs.ondoctype(this._nameBuffer, null, null, true);
@@ -938,7 +933,7 @@ _$[AFTER_DOCTYPE_NAME] = function afterDoctypeName(c){
 // 8.2.4.56 After DOCTYPE public keyword state
 // Ignored 8.2.4.57 Before DOCTYPE public identifier state
 
-_$[AFTER_DT_PUBLIC] = function afterDtPublic(c){
+Tokenizer.prototype._afterDtPublicState = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
 		this._state = DATA;
@@ -981,13 +976,13 @@ function doctypePublicQuotedState(quot){
 // 8.2.4.58 DOCTYPE public identifier (double-quoted) state
 // 8.2.4.59 DOCTYPE public identifier (single-quoted) state
 
-_$[DT_PUBLIC_DQ] = doctypePublicQuotedState("\"");
-_$[DT_PUBLIC_SQ] = doctypePublicQuotedState("'");
+Tokenizer.prototype._dtPublicDqState = doctypePublicQuotedState("\"");
+Tokenizer.prototype._dtPublicSqState = doctypePublicQuotedState("'");
 
 // Ignored 8.2.4.60 After DOCTYPE public identifier state
 // 8.2.4.61 Between DOCTYPE public and system identifiers state
 
-_$[DT_BETWEEN_PUB_SYS] = function dtBetweenPubSys(c){
+Tokenizer.prototype._dtBetweenPubSysState = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
 		this._state = DATA;
@@ -1010,7 +1005,7 @@ _$[DT_BETWEEN_PUB_SYS] = function dtBetweenPubSys(c){
 // 8.2.4.62 After DOCTYPE system keyword state
 // Ignored 8.2.4.63 Before DOCTYPE system identifier state
 
-_$[AFTER_DT_SYSTEM] = function afterDtSystem(c){
+Tokenizer.prototype._afterDtSystemState = function(c){
 	if(whitespace(c));
 	else if(c === ">"){
 		this._state = DATA;
@@ -1053,31 +1048,31 @@ function doctypeSystemQuotedState(quot){
 // 8.2.4.64 DOCTYPE system identifier (double-quoted) state
 // 8.2.4.65 DOCTYPE system identifier (single-quoted) state
 
-_$[DT_SYSTEM_DQ] = doctypeSystemQuotedState("\"");
-_$[DT_SYSTEM_SQ] = doctypeSystemQuotedState("'");
+Tokenizer.prototype._dtSystemDqState = doctypeSystemQuotedState("\"");
+Tokenizer.prototype._dtSystemSqState = doctypeSystemQuotedState("'");
 
 // 8.2.4.66 After DOCTYPE system identifier state
 
-_$[AFTER_DT_SYSTEM_IDENT] = function afterDtSystemIdent(c){
+Tokenizer.prototype._afterDtSystemIdentState = function(c){
 	if(!whitespace(c)){
 		this._state = BOGUS_DOCTYPE;
 		this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, true);
 		this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
-		this[BOGUS_DOCTYPE](c);
+		this._consumeCharacter(BOGUS_DOCTYPE, c);
 	}
 };
 
 //helper for sequences
-_$[BOGUS_EVIL_DOCTYPE] = function bogusEvilDoctype(c){
+Tokenizer.prototype._bogusEvilDoctypeState = function(c){
 	this._state = BOGUS_DOCTYPE;
 	this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, false);
 	this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
-	this[BOGUS_DOCTYPE](c);
+	this._consumeCharacter(BOGUS_DOCTYPE, c);
 };
 
 // 8.2.4.67 Bogus DOCTYPE state
 
-_$[BOGUS_DOCTYPE] = function bogusDoctype(c){
+Tokenizer.prototype._bogusDoctypeState = function(c){
 	if(c === ">"){
 		this._state = DATA;
 		this._sectionStart = this._index + 1;
@@ -1086,20 +1081,22 @@ _$[BOGUS_DOCTYPE] = function bogusDoctype(c){
 
 // 8.2.4.68 CDATA section state
 
-_$[BEFORE_CDATA] = function beforeCdata(c){
+Tokenizer.prototype._beforeCdataState = function(c){
 	if(c === "["){
 		this._state = IN_CDATA;
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = BOGUS_COMMENT;
-		this[BOGUS_COMMENT](c);
+		this._consumeCharacter(BOGUS_COMMENT, c);
 	}
 };
 
-_$[IN_CDATA] = characterState("]", AFTER_CDATA_1);
-_$[AFTER_CDATA_1] = ifElseState("]", AFTER_CDATA_2, IN_CDATA);
+Tokenizer.prototype._inCdataState = function(c){
+    if(c === "]") this._state = AFTER_CDATA_1;
+};
+Tokenizer.prototype._afterCdata1State = ifElseState("]", AFTER_CDATA_2, IN_CDATA);
 
-_$[AFTER_CDATA_2] = function afterCdata2(c){
+Tokenizer.prototype._afterCdata2State = function(c){
 	if(c === ">"){
 		//remove 2 trailing chars
 		this._state = DATA;
@@ -1111,25 +1108,25 @@ _$[AFTER_CDATA_2] = function afterCdata2(c){
 	//else: stay in AFTER_CDATA_2 (`]]]>`)
 };
 
-_$[BEFORE_ENTITY] = function beforeEntity(c){
+Tokenizer.prototype._beforeEntityState = function(c){
 	if(c === "#"){
 		this._state = BEFORE_NUMERIC_ENTITY;
 	} else {
 		this._state = IN_NAMED_ENTITY;
-		this[IN_NAMED_ENTITY](c);
+		this._consumeCharacter(IN_NAMED_ENTITY, c);
 	}
 };
 
-_$[BEFORE_NUMERIC_ENTITY] = function beforeNumericEntity(c){
+Tokenizer.prototype._beforeNumericEntityState = function(c){
 	if(c === "x" || c === "X"){
 		this._state = IN_HEX_ENTITY;
 	} else {
 		this._state = IN_NUMERIC_ENTITY;
-		this[IN_NUMERIC_ENTITY](c);
+		this._consumeCharacter(IN_NUMERIC_ENTITY, c);
 	}
 };
 
-_$[IN_NAMED_ENTITY] = function inNamedEntity(c){
+Tokenizer.prototype._inNamedEntityState = function(c){
 	if(c === ";"){
 		if(this._sectionStart + 1 !== this._index){
 			this._parseNamedEntityStrict();
@@ -1156,11 +1153,11 @@ _$[IN_NAMED_ENTITY] = function inNamedEntity(c){
 		}
 
 		this._state = this._baseState;
-		this[this._baseState](c);
+		this._consumeCharacter(this._baseState, c);
 	}
 };
 
-_$[IN_NUMERIC_ENTITY] = function inNumericEntity(c){
+Tokenizer.prototype._inNumericEntityState = function(c){
 	if(c === ";"){
 		this._state = this._baseState;
 
@@ -1177,11 +1174,11 @@ _$[IN_NUMERIC_ENTITY] = function inNumericEntity(c){
 			this._sectionStart = this._index;
 		}
 
-		this[this._baseState](c);
+		this._consumeCharacter(this._baseState, c);
 	}
 };
 
-_$[IN_HEX_ENTITY] = function inHexEntity(c){
+Tokenizer.prototype._inHexEntityState = function(c){
 	if(c === ";"){
 		this._state = this._baseState;
 
@@ -1197,7 +1194,7 @@ _$[IN_HEX_ENTITY] = function inHexEntity(c){
 			this._sectionStart = this._index;
 		}
 
-		this[this._baseState](c);
+		this._consumeCharacter(this._baseState, c);
 	}
 };
 
@@ -1284,11 +1281,159 @@ Tokenizer.prototype._parse = function(){
 	){
 		var c = this._buffer.charAt(this._index);
 
-		this[this._state](c);
+        this._consumeCharacter(this._state, c);
 		this._index++;
 	}
 
 	this._cleanup();
+};
+
+Tokenizer.prototype._consumeCharacter = function(state, c){
+    if(state === ATTRIBUTE_VALUE_DQ){
+        this._attributeValueDqState(c);
+    } else if(state === DATA){
+        this._dataState(c);
+    } else if(state === PLAINTEXT_STATE){
+        this._plaintextState(c);
+    } else if(state === SCRIPT_DATA_STATE){
+        this._scriptDataState(c);
+    } else if(state === ATTRIBUTE_NAME){
+        this._attributeNameState(c);
+    } else if(state === COMMENT){
+        this._commentState(c);
+    } else if(state === BEFORE_ATTRIBUTE_NAME){
+        this._beforeAttributeNameState(c);
+    } else if(state === TAG_NAME){
+        this._tagNameState(c);
+    } else if(state === RCDATA_STATE){
+        this._rcdataState(c);
+    } else if(state === IN_CLOSING_TAG_NAME){
+        this._inClosingTagNameState(c);
+    } else if(state === TAG_OPEN){
+        this._tagOpenState(c);
+    } else if(state === SCRIPT_DATA_ESCAPED_STATE){
+        this._scriptDataEscapedState(c);
+    } else if(state === ATTRIBUTE_VALUE_SQ){
+        this._attributeValueSqState(c);
+    } else if(state === AFTER_ATTRIBUTE_NAME){
+        this._afterAttributeNameState(c);
+    } else if(state === BEFORE_ATTRIBUTE_VALUE){
+        this._beforeAttributeValueState(c);
+    } else if(state === SKIP_NEWLINE){
+        this._skipNewlineState(c);
+    } else if(state === END_TAG_OPEN){
+        this._endTagOpenState(c);
+    } else if(state === SEQUENCE){
+        this._sequenceState(c);
+    } else if(state === SCRIPT_DATA_LT_SIGN_STATE){
+        this._scriptDataLtSignState(c);
+    } else if(state === COMMENT_END_DASH){
+        this._commentEndDashState(c);
+    } else if(state === SCRIPT_DATA_ESCAPED_LT_SIGN_STATE){
+        this._scriptDataEscapedLtSignState(c);
+    } else if(state === SELF_CLOSING_START_TAG){
+        this._selfClosingStartTagState(c);
+    } else if(state === ATTRIBUTE_VALUE_NQ){
+        this._attributeValueNqState(c);
+    } else if(state === MARKUP_DECLARATION_OPEN){
+        this._markupDeclarationOpenState(c);
+    } else if(state === COMMENT_END){
+        this._commentEndState(c);
+    } else if(state === COMMENT_START){
+        this._commentStartState(c);
+    } else if(state === BEFORE_COMMENT){
+        this._beforeCommentState(c);
+    } else if(state === END_TAG_NAME_STATE){
+        this._endTagNameState(c);
+    } else if(state === DT_SYSTEM_DQ){
+        this._dtSystemDqState(c);
+    } else if(state === DT_PUBLIC_DQ){
+        this._dtPublicDqState(c);
+    } else if(state === SCRIPT_DATA_ESCAPED_DASH_STATE){
+        this._scriptDataEscapedDashState(c);
+    } else if(state === SCRIPT_DATA_ESCAPE_START_STATE){
+        this._scriptDataEscapeStartState(c);
+    } else if(state === BOGUS_COMMENT){
+        this._bogusCommentState(c);
+    } else if(state === SCRIPT_DATA_ESCAPED_DASH_DASH_STATE){
+        this._scriptDataEscapedDashDashState(c);
+    } else if(state === DOCTYPE_NAME){
+        this._doctypeNameState(c);
+    } else if(state === SCRIPT_DATA_DOUBLE_ESCAPED_STATE){
+        this._scriptDataDoubleEscapedState(c);
+    } else if(state === SCRIPT_DATA_ESCAPE_START_DASH_STATE){
+        this._scriptDataEscapeStartDashState(c);
+    } else if(state === RCDATA_LT_SIGN_STATE){
+        this._rcdataLtSignState(c);
+    } else if(state === BEFORE_DOCTYPE_NAME){
+        this._beforeDoctypeNameState(c);
+    } else if(state === SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE){
+        this._scriptDataEscapedEndTagOpenState(c);
+    } else if(state === DT_BETWEEN_PUB_SYS){
+        this._dtBetweenPubSysState(c);
+    } else if(state === AFTER_DT_PUBLIC){
+        this._afterDtPublicState(c);
+    } else if(state === COMMENT_START_DASH){
+        this._commentStartDashState(c);
+    } else if(state === AFTER_DOCTYPE_NAME){
+        this._afterDoctypeNameState(c);
+    } else if(state === AFTER_DT_SYSTEM_IDENT){
+        this._afterDtSystemIdentState(c);
+    } else if(state === BOGUS_DOCTYPE){
+        this._bogusDoctypeState(c);
+    } else if(state === SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE){
+        this._scriptDataDoubleEscapeStartState(c);
+    } else if(state === SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE){
+        this._scriptDataEscapedEndTagNameState(c);
+    } else if(state === SCRIPT_DATA_DOUBLE_ESCAPED_DASH_STATE){
+        this._scriptDataDoubleEscapedDashState(c);
+    } else if(state === SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE){
+        this._scriptDataDoubleEscapedDashDashState(c);
+    } else if(state === RAWTEXT_LT_SIGN_STATE){
+        this._rawtextLtSignState(c);
+    } else if(state === RCDATA_END_TAG_NAME_STATE){
+        this._rcdataEndTagNameState(c);
+    } else if(state === XML_DECLARATION){
+        this._xmlDeclarationState(c);
+    } else if(state === RAWTEXT_STATE){
+        this._rawtextState(c);
+    } else if(state === IN_HEX_ENTITY){
+        this._inHexEntityState(c);
+    } else if(state === IN_NUMERIC_ENTITY){
+        this._inNumericEntityState(c);
+    } else if(state === IN_NAMED_ENTITY){
+        this._inNamedEntityState(c);
+    } else if(state === BEFORE_NUMERIC_ENTITY){
+        this._beforeNumericEntityState(c);
+    } else if(state === SCRIPT_DATA_END_TAG_NAME_STATE){
+        this._scriptDataEndTagNameState(c);
+    } else if(state === AFTER_CDATA_2){
+        this._afterCdata2State(c);
+    } else if(state === AFTER_CDATA_1){
+        this._afterCdata1State(c);
+    } else if(state === IN_CDATA){
+        this._inCdataState(c);
+    } else if(state === BEFORE_CDATA){
+        this._beforeCdataState(c);
+    } else if(state === RAWTEXT_END_TAG_NAME_STATE){
+        this._rawtextEndTagNameState(c);
+    } else if(state === BOGUS_EVIL_DOCTYPE){
+        this._bogusEvilDoctypeState(c);
+    } else if(state === SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE){
+        this._scriptDataDoubleEscapeEndState(c);
+    } else if(state === COMMENT_END_BANG){
+        this._commentEndBangState(c);
+    } else if(state === DT_SYSTEM_SQ){
+        this._dtSystemSqState(c);
+    } else if(state === AFTER_CLOSING_TAG_NAME){
+        this._afterClosingTagNameState(c);
+    } else if(state === AFTER_DT_SYSTEM){
+        this._afterDtSystemState(c);
+    } else if(state === DT_PUBLIC_SQ){
+        this._dtPublicSqState(c);
+    } else if(state === BEFORE_ENTITY){
+        this._beforeEntityState(c);
+    }
 };
 
 Tokenizer.prototype.pause = function(){
