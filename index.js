@@ -130,7 +130,7 @@ function ifElseState(char, SUCCESS, FAILURE){
 			this._state = SUCCESS;
 		} else {
 			 this._state = FAILURE;
-			 this._consumeCharacter(FAILURE, c);
+			 this._consumeCharacter(c);
 		}
 	};
 }
@@ -148,7 +148,7 @@ function Tokenizer(cbs, options){
 	this._running = true;
 	this._ended = false;
 	this._xmlMode = !!(options && options.xmlMode);
-	this._decodeEntities = !!(options && options.decodeEntities);
+	this._decodeEntities = options && "decodeEntities" in options ? !!options.decodeEntities : true;
 
 	this._lowerCaseTagNames =
 		options && "lowerCaseTags" in options ? !!options.lowerCaseTags : !this._xmlMode;
@@ -179,7 +179,7 @@ Tokenizer.prototype._sequenceState = function(c){
 		}
 	} else {
 		this._state = this._baseState;
-		this._consumeCharacter(this._baseState, c);
+		this._consumeCharacter(c);
 	}
 };
 
@@ -188,7 +188,7 @@ Tokenizer.prototype._skipNewlineState = function(c){
 		this._sectionStart = this._index + 1;
 	}
 	this._state = this._baseState;
-	this._consumeCharacter(this._baseState, c);
+	this._consumeCharacter(c);
 };
 
 Tokenizer.prototype._emitTextSection = function(){
@@ -201,17 +201,17 @@ Tokenizer.prototype._emitTextSection = function(){
 // 8.2.4.1 Data state
 
 Tokenizer.prototype._dataState = function(c){
-	if(this._decodeEntities && c === "&"){
-		this._baseState = this._state;
-		this._state = BEFORE_ENTITY;
-		this._emitTextSection();
-	} else if(c === "<"){
+	if(c === "<"){
 		this._state = TAG_OPEN;
 		this._emitTextSection();
 	} else if(c === "\r"){
 		this._baseState = this._state;
 		this._state = SKIP_NEWLINE;
 		this._cbs.ontext(this._getPartialSection() + "\n");
+	} else if(this._decodeEntities && c === "&"){
+		this._baseState = this._state;
+		this._state = BEFORE_ENTITY;
+		this._emitTextSection();
 	}
 };
 
@@ -226,7 +226,7 @@ Tokenizer.prototype._rcdataState = function(c){
 		this._state = RCDATA_LT_SIGN_STATE;
 		this._emitTextSection();
 	} else {
-		this._consumeCharacter(PLAINTEXT_STATE, c);
+		this._plaintextState(c);
 	}
 };
 
@@ -236,7 +236,7 @@ function textState(LT_SIGN_STATE){
 			this._state = LT_SIGN_STATE;
 			this._emitTextSection();
 		} else {
-			this._consumeCharacter(PLAINTEXT_STATE, c);
+			this._plaintextState(c);
 		}
 	};
 }
@@ -291,7 +291,7 @@ Tokenizer.prototype._tagOpenState = function(c){
 	} else {
 		// parse error
 		this._state = DATA;
-		this._consumeCharacter(DATA, c);
+		this._dataState(c);
 	}
 };
 
@@ -322,7 +322,7 @@ Tokenizer.prototype._endTagOpenState = function(c){
 		// parse error
 		this._state = BOGUS_COMMENT;
 		this._sectionStart = this._index;
-		this._consumeCharacter(BOGUS_COMMENT, c);
+		this._bogusCommentState(c);
 	}
 };
 
@@ -360,7 +360,7 @@ function lessThanSignState(BASE_STATE, NEXT_STATE){
 			this._baseState = BASE_STATE;
 		} else {
 			this._state = BASE_STATE;
-			this._consumeCharacter(BASE_STATE, c);
+			this._consumeCharacter(c);
 		}
 	};
 }
@@ -375,7 +375,7 @@ Tokenizer.prototype._endTagNameState = function(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = this._baseState;
-		this._consumeCharacter(this._baseState, c);
+		this._consumeCharacter(c);
 	}
 };
 
@@ -407,7 +407,7 @@ Tokenizer.prototype._scriptDataLtSignState = function(c){
 		this._state = SCRIPT_DATA_ESCAPE_START_STATE;
 	} else {
 		this._state = SCRIPT_DATA_STATE;
-		this._consumeCharacter(SCRIPT_DATA_STATE, c);
+		this._scriptDataState(c);
 	}
 };
 
@@ -451,7 +451,7 @@ Tokenizer.prototype._scriptDataEscapedDashDashState = function(c){
 		this._state = SCRIPT_DATA_STATE;
 	} else if(c !== "-"){
 		this._state = SCRIPT_DATA_ESCAPED_STATE;
-		this._consumeCharacter(SCRIPT_DATA_ESCAPED_STATE, c);
+		this._scriptDataEscapedState(c);
 	}
 };
 
@@ -477,7 +477,7 @@ Tokenizer.prototype._scriptDataEscapedLtSignState = function(c){
 Tokenizer.prototype._scriptDataEscapedEndTagOpenState = function(c){
 	this._state = SCRIPT_DATA_ESCAPED_STATE;
 	this._cbs.ontext("<-");
-	this._consumeCharacter(SCRIPT_DATA_ESCAPED_STATE, c);
+	this._scriptDataEscapedState(c);
 };
 
 // 8.2.4.27 Script data escaped end tag name state
@@ -491,7 +491,7 @@ Tokenizer.prototype._scriptDataEscapedEndTagNameState = function(c){
 		this._nameBuffer = this._sequence;
 		this._state = AFTER_CLOSING_TAG_NAME;
 	} else {
-		this._consumeCharacter(SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE, c);
+		this._scriptDataEscapedEndTagOpenState(c);
 	}
 };
 
@@ -502,7 +502,7 @@ Tokenizer.prototype._scriptDataDoubleEscapeStartState = function(c){
 		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
 	} else {
 		this._state = SCRIPT_DATA_ESCAPED_STATE;
-		this._consumeCharacter(SCRIPT_DATA_ESCAPED_STATE, c);
+		this._scriptDataEscapedState(c);
 	}
 };
 
@@ -537,7 +537,7 @@ Tokenizer.prototype._scriptDataDoubleEscapedDashDashState = function(c){
 		this._state = SCRIPT_DATA_STATE;
 	} else if(c !== "-"){
 		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
-		this._consumeCharacter(SCRIPT_DATA_DOUBLE_ESCAPED_STATE, c);
+		this._scriptDataDoubleEscapedState(c);
 	}
 };
 
@@ -548,7 +548,7 @@ Tokenizer.prototype._scriptDataDoubleEscapeEndState = function(c){
 		this._state = SCRIPT_DATA_ESCAPED_STATE;
 	} else {
 		this._state = SCRIPT_DATA_DOUBLE_ESCAPED_STATE;
-		this._consumeCharacter(SCRIPT_DATA_DOUBLE_ESCAPED_STATE, c);
+		this._scriptDataDoubleEscapedState(c);
 	}
 };
 
@@ -584,7 +584,7 @@ Tokenizer.prototype._attributeNameState = function(c){
 	if(c === "=" || c === "/" || c === ">" || whitespace(c)){
 		this._state = AFTER_ATTRIBUTE_NAME;
 		this._nameBuffer += this._getEndingSection();
-		this._consumeCharacter(AFTER_ATTRIBUTE_NAME, c);
+		this._afterAttributeNameState(c);
 	} else if(c === "\0"){
 		this._nameBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
 	} else if(this._lowerCaseAttributeNames && isUpperCaseChar(c)){
@@ -648,7 +648,7 @@ Tokenizer.prototype._beforeAttributeValueState = function(c){
 		this._state = ATTRIBUTE_VALUE_NQ;
 		this._valueBuffer = "";
 		this._sectionStart = this._index;
-		this._consumeCharacter(ATTRIBUTE_VALUE_NQ, c);
+		this._attributeValueNqState(c);
 	}
 };
 
@@ -658,6 +658,10 @@ function attributeValueQuotedState(QUOT){
 			this._state = BEFORE_ATTRIBUTE_NAME;
 			this._cbs.onattribute(this._nameBuffer, this._valueBuffer + this._getEndingSection());
 			this._nameBuffer = this._valueBuffer = null;
+        }  else if(c === "\r"){
+			this._valueBuffer += this._getPartialSection() + "\n";
+			this._baseState = this._state;
+			this._state = SKIP_NEWLINE;
 		} else if(this._decodeEntities && c === "&"){
 			this._valueBuffer += this._getSection();
 			this._baseState = this._state;
@@ -666,10 +670,6 @@ function attributeValueQuotedState(QUOT){
 		} else if(c === "\0"){
 			// parse error
 			this._valueBuffer += this._getPartialSection() + REPLACEMENT_CHARACTER;
-		}  else if(c === "\r"){
-			this._valueBuffer += this._getPartialSection() + "\n";
-			this._baseState = this._state;
-			this._state = SKIP_NEWLINE;
 		}
 	};
 }
@@ -715,7 +715,7 @@ Tokenizer.prototype._selfClosingStartTagState = function(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = BEFORE_ATTRIBUTE_NAME;
-		this._consumeCharacter(BEFORE_ATTRIBUTE_NAME, c);
+		this._beforeAttributeNameState(c);
 	}
 };
 
@@ -750,7 +750,7 @@ Tokenizer.prototype._markupDeclarationOpenState = function(c){
 		this._state = XML_DECLARATION;
 	} else {
 		this._state = BOGUS_COMMENT;
-		this._consumeCharacter(BOGUS_COMMENT, c);
+		this._bogusCommentState(c);
 	}
 };
 
@@ -775,7 +775,7 @@ Tokenizer.prototype._commentStartState = function(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = COMMENT;
-		this._consumeCharacter(COMMENT, c);
+		this._commentState(c);
 	}
 };
 
@@ -791,7 +791,7 @@ Tokenizer.prototype._commentStartDashState = function(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = COMMENT;
-		this._consumeCharacter(COMMENT, c);
+		this._commentState(c);
 	}
 };
 
@@ -828,7 +828,7 @@ Tokenizer.prototype._commentEndState = function(c){
 		this._state = COMMENT_END_BANG;
 	} else if(c !== "-"){
 		this._state = COMMENT;
-		this._consumeCharacter(COMMENT, c);
+		this._commentState(c);
 	}
 	// else: parse error, stay in COMMENT_END (`--->`)
 };
@@ -846,7 +846,7 @@ Tokenizer.prototype._commentEndBangState = function(c){
 		this._state = COMMENT_END_DASH;
 	} else {
 		this._state = COMMENT;
-		this._consumeCharacter(COMMENT, c);
+		this._commentState(c);
 	}
 };
 
@@ -1058,7 +1058,7 @@ Tokenizer.prototype._afterDtSystemIdentState = function(c){
 		this._state = BOGUS_DOCTYPE;
 		this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, true);
 		this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
-		this._consumeCharacter(BOGUS_DOCTYPE, c);
+		this._bogusDoctypeState(c);
 	}
 };
 
@@ -1067,7 +1067,7 @@ Tokenizer.prototype._bogusEvilDoctypeState = function(c){
 	this._state = BOGUS_DOCTYPE;
 	this._cbs.ondoctype(this._nameBuffer, this._valueBuffer, this._systemBuffer, false);
 	this._nameBuffer = this._valueBuffer = this._systemBuffer = null;
-	this._consumeCharacter(BOGUS_DOCTYPE, c);
+	this._bogusDoctypeState(c);
 };
 
 // 8.2.4.67 Bogus DOCTYPE state
@@ -1087,7 +1087,7 @@ Tokenizer.prototype._beforeCdataState = function(c){
 		this._sectionStart = this._index + 1;
 	} else {
 		this._state = BOGUS_COMMENT;
-		this._consumeCharacter(BOGUS_COMMENT, c);
+		this._bogusCommentState(c);
 	}
 };
 
@@ -1113,7 +1113,7 @@ Tokenizer.prototype._beforeEntityState = function(c){
 		this._state = BEFORE_NUMERIC_ENTITY;
 	} else {
 		this._state = IN_NAMED_ENTITY;
-		this._consumeCharacter(IN_NAMED_ENTITY, c);
+		this._inNamedEntityState(c);
 	}
 };
 
@@ -1122,7 +1122,7 @@ Tokenizer.prototype._beforeNumericEntityState = function(c){
 		this._state = IN_HEX_ENTITY;
 	} else {
 		this._state = IN_NUMERIC_ENTITY;
-		this._consumeCharacter(IN_NUMERIC_ENTITY, c);
+		this._inNumericEntityState(c);
 	}
 };
 
@@ -1153,7 +1153,7 @@ Tokenizer.prototype._inNamedEntityState = function(c){
 		}
 
 		this._state = this._baseState;
-		this._consumeCharacter(this._baseState, c);
+		this._consumeCharacter(c);
 	}
 };
 
@@ -1174,7 +1174,7 @@ Tokenizer.prototype._inNumericEntityState = function(c){
 			this._sectionStart = this._index;
 		}
 
-		this._consumeCharacter(this._baseState, c);
+		this._consumeCharacter(c);
 	}
 };
 
@@ -1194,7 +1194,7 @@ Tokenizer.prototype._inHexEntityState = function(c){
 			this._sectionStart = this._index;
 		}
 
-		this._consumeCharacter(this._baseState, c);
+		this._consumeCharacter(c);
 	}
 };
 
@@ -1281,20 +1281,20 @@ Tokenizer.prototype._parse = function(){
 	){
 		var c = this._buffer.charAt(this._index);
 
-        this._consumeCharacter(this._state, c);
+        this._consumeCharacter(c);
 		this._index++;
 	}
 
 	this._cleanup();
 };
 
-Tokenizer.prototype._consumeCharacter = function(state, c){
+Tokenizer.prototype._consumeCharacter = function(c){
+    var state = this._state;
+
     if(state === ATTRIBUTE_VALUE_DQ){
         this._attributeValueDqState(c);
     } else if(state === DATA){
         this._dataState(c);
-    } else if(state === PLAINTEXT_STATE){
-        this._plaintextState(c);
     } else if(state === SCRIPT_DATA_STATE){
         this._scriptDataState(c);
     } else if(state === ATTRIBUTE_NAME){
@@ -1305,36 +1305,40 @@ Tokenizer.prototype._consumeCharacter = function(state, c){
         this._beforeAttributeNameState(c);
     } else if(state === TAG_NAME){
         this._tagNameState(c);
-    } else if(state === RCDATA_STATE){
-        this._rcdataState(c);
     } else if(state === IN_CLOSING_TAG_NAME){
         this._inClosingTagNameState(c);
+    } else if(state === RCDATA_STATE){
+        this._rcdataState(c);
     } else if(state === TAG_OPEN){
         this._tagOpenState(c);
-    } else if(state === SCRIPT_DATA_ESCAPED_STATE){
-        this._scriptDataEscapedState(c);
     } else if(state === ATTRIBUTE_VALUE_SQ){
         this._attributeValueSqState(c);
-    } else if(state === AFTER_ATTRIBUTE_NAME){
-        this._afterAttributeNameState(c);
+    } else if(state === SCRIPT_DATA_ESCAPED_STATE){
+        this._scriptDataEscapedState(c);
     } else if(state === BEFORE_ATTRIBUTE_VALUE){
         this._beforeAttributeValueState(c);
+    } else if(state === IN_CDATA){
+        this._inCdataState(c);
     } else if(state === SKIP_NEWLINE){
         this._skipNewlineState(c);
     } else if(state === END_TAG_OPEN){
         this._endTagOpenState(c);
+    } else if(state === IN_NAMED_ENTITY){
+        this._inNamedEntityState(c);
     } else if(state === SEQUENCE){
         this._sequenceState(c);
-    } else if(state === SCRIPT_DATA_LT_SIGN_STATE){
-        this._scriptDataLtSignState(c);
-    } else if(state === COMMENT_END_DASH){
-        this._commentEndDashState(c);
-    } else if(state === SCRIPT_DATA_ESCAPED_LT_SIGN_STATE){
-        this._scriptDataEscapedLtSignState(c);
-    } else if(state === SELF_CLOSING_START_TAG){
-        this._selfClosingStartTagState(c);
+    } else if(state === BEFORE_ENTITY){
+        this._beforeEntityState(c);
     } else if(state === ATTRIBUTE_VALUE_NQ){
         this._attributeValueNqState(c);
+    } else if(state === COMMENT_END_DASH){
+        this._commentEndDashState(c);
+    } else if(state === SCRIPT_DATA_LT_SIGN_STATE){
+        this._scriptDataLtSignState(c);
+    } else if(state === SELF_CLOSING_START_TAG){
+        this._selfClosingStartTagState(c);
+    } else if(state === SCRIPT_DATA_ESCAPED_LT_SIGN_STATE){
+        this._scriptDataEscapedLtSignState(c);
     } else if(state === MARKUP_DECLARATION_OPEN){
         this._markupDeclarationOpenState(c);
     } else if(state === COMMENT_END){
@@ -1343,12 +1347,18 @@ Tokenizer.prototype._consumeCharacter = function(state, c){
         this._commentStartState(c);
     } else if(state === BEFORE_COMMENT){
         this._beforeCommentState(c);
+    } else if(state === IN_NUMERIC_ENTITY){
+        this._inNumericEntityState(c);
     } else if(state === END_TAG_NAME_STATE){
         this._endTagNameState(c);
     } else if(state === DT_SYSTEM_DQ){
         this._dtSystemDqState(c);
     } else if(state === DT_PUBLIC_DQ){
         this._dtPublicDqState(c);
+    } else if(state === BEFORE_NUMERIC_ENTITY){
+        this._beforeNumericEntityState(c);
+    } else if(state === AFTER_ATTRIBUTE_NAME){
+        this._afterAttributeNameState(c);
     } else if(state === SCRIPT_DATA_ESCAPED_DASH_STATE){
         this._scriptDataEscapedDashState(c);
     } else if(state === SCRIPT_DATA_ESCAPE_START_STATE){
@@ -1359,80 +1369,72 @@ Tokenizer.prototype._consumeCharacter = function(state, c){
         this._scriptDataEscapedDashDashState(c);
     } else if(state === DOCTYPE_NAME){
         this._doctypeNameState(c);
+    } else if(state === AFTER_CDATA_1){
+        this._afterCdata1State(c);
+    } else if(state === IN_HEX_ENTITY){
+        this._inHexEntityState(c);
     } else if(state === SCRIPT_DATA_DOUBLE_ESCAPED_STATE){
         this._scriptDataDoubleEscapedState(c);
     } else if(state === SCRIPT_DATA_ESCAPE_START_DASH_STATE){
         this._scriptDataEscapeStartDashState(c);
-    } else if(state === RCDATA_LT_SIGN_STATE){
-        this._rcdataLtSignState(c);
     } else if(state === BEFORE_DOCTYPE_NAME){
         this._beforeDoctypeNameState(c);
-    } else if(state === SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE){
-        this._scriptDataEscapedEndTagOpenState(c);
+    } else if(state === RCDATA_LT_SIGN_STATE){
+        this._rcdataLtSignState(c);
     } else if(state === DT_BETWEEN_PUB_SYS){
         this._dtBetweenPubSysState(c);
+    } else if(state === SCRIPT_DATA_ESCAPED_END_TAG_OPEN_STATE){
+        this._scriptDataEscapedEndTagOpenState(c);
     } else if(state === AFTER_DT_PUBLIC){
         this._afterDtPublicState(c);
+    } else if(state === AFTER_CDATA_2){
+        this._afterCdata2State(c);
+    } else if(state === BEFORE_CDATA){
+        this._beforeCdataState(c);
     } else if(state === COMMENT_START_DASH){
         this._commentStartDashState(c);
     } else if(state === AFTER_DOCTYPE_NAME){
         this._afterDoctypeNameState(c);
     } else if(state === AFTER_DT_SYSTEM_IDENT){
         this._afterDtSystemIdentState(c);
-    } else if(state === BOGUS_DOCTYPE){
-        this._bogusDoctypeState(c);
+    } else if(state === AFTER_CLOSING_TAG_NAME){
+        this._afterClosingTagNameState(c);
+    } else if(state === XML_DECLARATION){
+        this._xmlDeclarationState(c);
     } else if(state === SCRIPT_DATA_DOUBLE_ESCAPE_START_STATE){
         this._scriptDataDoubleEscapeStartState(c);
     } else if(state === SCRIPT_DATA_ESCAPED_END_TAG_NAME_STATE){
         this._scriptDataEscapedEndTagNameState(c);
-    } else if(state === SCRIPT_DATA_DOUBLE_ESCAPED_DASH_STATE){
-        this._scriptDataDoubleEscapedDashState(c);
     } else if(state === SCRIPT_DATA_DOUBLE_ESCAPED_DASH_DASH_STATE){
         this._scriptDataDoubleEscapedDashDashState(c);
+    } else if(state === SCRIPT_DATA_DOUBLE_ESCAPED_DASH_STATE){
+        this._scriptDataDoubleEscapedDashState(c);
+    } else if(state === DT_SYSTEM_SQ){
+        this._dtSystemSqState(c);
+    } else if(state === SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE){
+        this._scriptDataDoubleEscapeEndState(c);
+    } else if(state === BOGUS_EVIL_DOCTYPE){
+        this._bogusEvilDoctypeState(c);
+    } else if(state === BOGUS_DOCTYPE){
+        this._bogusDoctypeState(c);
+    } else if(state === AFTER_DT_SYSTEM){
+        this._afterDtSystemState(c);
+    } else if(state === COMMENT_END_BANG){
+        this._commentEndBangState(c);
+    } else if(state === RAWTEXT_STATE){
+        this._rawtextState(c);
+    } else if(state === SCRIPT_DATA_END_TAG_NAME_STATE){
+        this._scriptDataEndTagNameState(c);
+    } else if(state === DT_PUBLIC_SQ){
+        this._dtPublicSqState(c);
+    } else if(state === RAWTEXT_END_TAG_NAME_STATE){
+        this._rawtextEndTagNameState(c);
     } else if(state === RAWTEXT_LT_SIGN_STATE){
         this._rawtextLtSignState(c);
     } else if(state === RCDATA_END_TAG_NAME_STATE){
         this._rcdataEndTagNameState(c);
-    } else if(state === XML_DECLARATION){
-        this._xmlDeclarationState(c);
-    } else if(state === RAWTEXT_STATE){
-        this._rawtextState(c);
-    } else if(state === IN_HEX_ENTITY){
-        this._inHexEntityState(c);
-    } else if(state === IN_NUMERIC_ENTITY){
-        this._inNumericEntityState(c);
-    } else if(state === IN_NAMED_ENTITY){
-        this._inNamedEntityState(c);
-    } else if(state === BEFORE_NUMERIC_ENTITY){
-        this._beforeNumericEntityState(c);
-    } else if(state === SCRIPT_DATA_END_TAG_NAME_STATE){
-        this._scriptDataEndTagNameState(c);
-    } else if(state === AFTER_CDATA_2){
-        this._afterCdata2State(c);
-    } else if(state === AFTER_CDATA_1){
-        this._afterCdata1State(c);
-    } else if(state === IN_CDATA){
-        this._inCdataState(c);
-    } else if(state === BEFORE_CDATA){
-        this._beforeCdataState(c);
-    } else if(state === RAWTEXT_END_TAG_NAME_STATE){
-        this._rawtextEndTagNameState(c);
-    } else if(state === BOGUS_EVIL_DOCTYPE){
-        this._bogusEvilDoctypeState(c);
-    } else if(state === SCRIPT_DATA_DOUBLE_ESCAPE_END_STATE){
-        this._scriptDataDoubleEscapeEndState(c);
-    } else if(state === COMMENT_END_BANG){
-        this._commentEndBangState(c);
-    } else if(state === DT_SYSTEM_SQ){
-        this._dtSystemSqState(c);
-    } else if(state === AFTER_CLOSING_TAG_NAME){
-        this._afterClosingTagNameState(c);
-    } else if(state === AFTER_DT_SYSTEM){
-        this._afterDtSystemState(c);
-    } else if(state === DT_PUBLIC_SQ){
-        this._dtPublicSqState(c);
-    } else if(state === BEFORE_ENTITY){
-        this._beforeEntityState(c);
+    } else if(state === PLAINTEXT_STATE){
+        this._plaintextState(c);
     }
 };
 
