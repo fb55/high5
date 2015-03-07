@@ -1,6 +1,6 @@
 {
   "name": "high5",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "(eventually) spec-compliant html 5 parser",
   "directories": {
     "test": "test"
@@ -29,8 +29,8 @@
   "devDependencies": {
     "mocha": "2",
     "jshint": "2"
-},
-"jshintConfig": {
+  },
+  "jshintConfig": {
     "eqeqeq": true,
     "freeze": true,
     "latedef": "nofunc",
