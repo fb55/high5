@@ -27,7 +27,7 @@
     "entities": "~1.1.1"
   },
   "devDependencies": {
-    "mocha": "^5.0.1",
+    "mocha": "^6.0.0",
     "jshint": "2"
   },
   "jshintConfig": {
